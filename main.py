@@ -9,7 +9,12 @@ def main():
     Main function to initialize and run the assembly interpreter.\n
     Requires a file path as a command line argument or user input.
     Prompts for command line arguments after validating the file path.\n
-    Author: João Carilho Louro
+    CLI Usage: python main.py /path/to/assembly_file.asm -d (debugging_flags) -- <interpreter_arguments>\n
+    Supported interpreter arguments:]\n -d (debugging_flags)\n -s (strick mode)  -- (separates interpreter arguments from the assembly file path)\n
+    Debugging flags can be set to enable or disable debugging mode.\n
+    Strick mode disables debugging and arguments prompting if missing.\n
+    
+    Author: João Carrilho Louro
 
     :return: None
     :rtype: None
@@ -20,7 +25,12 @@ def main():
     Storage.clean_cache()  # Clean cache before starting
     
     file = get_file()
-    argv: list[str] | None = get_args()
+    # seen_flags lookup:
+    # first index = debugging_flags, second index = strick_mode
+    # first index of each = seen, second index of each = enabled
+    # 0 = -d (debugging_flags)
+    # 1 = -s (strick mode)
+    (seen_flags, argv) = parse_args(sys.argv[2:])
 
     if argv is None:
         argvcount: int = 0
@@ -28,7 +38,8 @@ def main():
         argvcount: int = len(argv)
 
     loader: Segment_Mapper = Segment_Mapper(file, argvcount, argv) 
-    cpu: Control_Unit = Control_Unit(loader, is_debugging()) 
+    # Debugging mode is only reprompted if neither -d nor -s flags are seen, otherwise is defaulted to false
+    cpu: Control_Unit = Control_Unit(loader, is_debugging() if not seen_flags[0] and not seen_flags[1][1] else False) 
     cpu.run()
     print(f"Final State: \n {cpu.get_state("all")}")
 
@@ -61,16 +72,42 @@ def valid_file(file_path: str) -> bool:
         return False
     return True
 
-def get_args() -> list[str] | None:
+def get_args(args_list: list[str]) -> list[str] | None:
     """
     Get command line arguments from user input.
 
     :return: List of command line arguments or None
     :rtype: list[str] | None
     """
+
     user_input: str = input("Enter command-line arguments separated by spaces (or press Enter for none): ")
     args: list[str] = user_input.split() if user_input.strip() else []
     return args if args else None
+
+def parse_args(args_list: list[str]) -> tuple[list[list[bool]], list[str] | None]:
+    """
+    Parse command line arguments from a list.
+
+    :param args_list: List of command line arguments
+    :type args_list: list[str]
+    :return: A tuple containing a boolean indicating if debugging is enabled and a list of parsed command line arguments
+    :rtype: (bool, list[str])
+    """
+    accept_args_state: bool = False
+    seen_args: list[list[bool]] = [[False, False], [False, False]]  # [debugging, strick_mode]
+    parsed_args: list[str] = []
+    for arg in args_list:
+        if arg == "-d":
+            seen_args[0] = [True, True]
+        elif arg == "-s":
+            seen_args[1] = [True, True]
+        else:
+            if arg == "--":
+                accept_args_state = not accept_args_state
+                continue
+            if accept_args_state:
+                parsed_args.append(arg)
+    return seen_args, parsed_args
 
 def is_debugging():
     """

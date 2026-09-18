@@ -5,7 +5,7 @@ A simple assembly x86 64-bit interpreter with sequential execution and error det
 
 ## About the Project
 
-This projects aims to simulate the behavior of a cpu while executing simple Assembly x86-64bit code with Intel syntax.
+This project aims to simulate the behavior of a CPU while executing simple Assembly x86-64bit code with Intel syntax.
 In order to execute this projects goal, cpu component classes were implemented simulating its behavior:
 
 - registers: general purpose register, fpu registers and the flag register;
@@ -26,25 +26,76 @@ Before using please make sure your code follows the [Code format references](#co
 
 ## Installation & Distribution
 
+> **Prerequisites:** Python 3.14+, `gcc` (or another C compiler), and `make`.
+> The interpreter's register/memory state is implemented in C and loaded via
+> `ctypes` at runtime — **the C shared libraries must be compiled locally
+> regardless of which installation method you use below**, since compiled
+> binaries aren't distributed as part of the wheel.
+
 ### 1. From GitHub Releases (Pre-built Package)
 
-Download and install the pre-compiled wheel directly from the [v0.3.2 GitHub Release](https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter/releases/tag/v0.3.0):
+Download and install the pre-compiled wheel directly from the
+[v0.3.2 GitHub Release](https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter/releases/tag/v0.3.2):
 
 ```bash
 pip install https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter/releases/download/v0.3.2/cpu_simulator-0.3.2-py3-none-any.whl
 ```
 
+You'll still need the C libraries built locally (see step 3 below) — clone
+the repository separately and run `make` from its root before the
+interpreter can actually execute anything.
+
 ### 2. From Source
 
-Clone the repository and build using standard tools:
+Clone the repository:
 ```bash
 git clone https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter.git
 cd Assembley-x86-64-bit-interpreter
+```
 
-# Build C libraries
-make
+Create and activate a virtual environment (recommended, keeps the
+project's dependencies isolated from your system Python):
+```bash
+python3 -m venv .venv
 
-# Build local distribution wheels
+# bash/zsh
+source .venv/bin/activate
+# fish
+source .venv/bin/activate.fish
+```
+
+Install the project in editable mode:
+```bash
+pip install -e .
+```
+
+### 3. Build the C libraries
+
+Required for both installation methods above — this compiles
+`libreg.so`, `libmmu.so`, `liboperations.so`, and `libscl.so` into
+`interpreter/_src/lib/`:
+```bash
+make clean && make
+```
+
+Verify the install resolved correctly:
+```bash
+python -c "import interpreter; print(interpreter.__file__)"
+```
+This should print a path inside your cloned repository.
+
+### 4. Running the test suite (optional)
+
+The test suite uses `pytest`, which isn't installed automatically by
+either method above:
+```bash
+pip install pytest
+pytest tests/ -v
+```
+
+Alternatively, build local distribution wheels yourself instead of using
+a pre-built release:
+```bash
 python -m pip install pyproject-build
 pyproject-build
 pip install dist/cpu_simulator-0.3.2-py3-none-any.whl
@@ -66,27 +117,100 @@ python main.py
 
 ### Programmatic Python API
 
-The top-level `interpreter` package exposes `Interpreter` and `ExitCode` for programmatically controlling and inspecting simulation runs:
+The top-level `interpreter` package exposes `Interpreter` and `ExitCode` for
+programmatically controlling and inspecting simulation runs.
+
+> **Note:** both `file_name` and `args` are required positional arguments —
+> there's no default that skips them silently. Passing `None`, or an empty
+> list, or omitting `args` doesn't run the program with "no arguments" —
+> it makes the constructor **block on an interactive `input()` prompt**
+> asking for them. For non-interactive/programmatic use, always pass a
+> real file path and a list — use a placeholder like `["_"]` if the
+> program itself doesn't read `argv`.
+
+#### `Interpreter(file_name: str, args: list[str], debugging: bool = False)`
+
+Constructs the interpreter: loads and parses the given `.asm` file (via
+the segment mapper), initializing memory/register state. Does **not**
+execute the program — call `.run()` separately to do that.
+
+- `file_name` — path to the `.asm` file to load.
+- `args` — command-line arguments the simulated program receives (as
+  `argc`/`argv`); pass a placeholder list if the program doesn't use them.
+- `debugging` — when `True`, enables trap-flag-driven single-step
+  execution instead of running straight through.
+
+#### `.run() -> ExitCode`
+
+Executes the loaded program until it terminates (via an exit syscall,
+falling off the end of `.text`, or an error), then returns the resulting
+`ExitCode`. If the file failed to parse during construction, returns
+`ExitCode.IRRECOVERABLE_ERROR` without attempting execution.
+
+#### `.get_state(section: str, numerical_representation: int = 16) -> dict[str, int | str]`
+
+Returns a snapshot of CPU/memory state as `name -> value`, without
+tearing anything down — can be called repeatedly, including mid-run if
+you're driving execution manually.
+
+- `section` — `"all"`, `"data"`, `"rodata"`, `"bss"`, or `"registers"`.
+- `numerical_representation` — the base to render values in: `10`
+  (decimal, returned as plain `int`), `2` (binary), `8` (octal), or `16`
+  (hexadecimal, the default) — the latter three are returned as
+  Python-style prefixed strings (e.g. `"0x2a"`). Negative values are
+  shown as their two's-complement bit pattern at the value's actual
+  width, not a signed `"-0x.."` string. An unsupported value falls back
+  to `16` with a warning printed.
+
+#### `.to_json(path: str, numerical_representation: int = 10) -> str | None`
+
+Exports the final state (equivalent to `get_state("all", ...)`) to a
+JSON file at `path`. `path` is the full destination *file* path, not a
+directory — its parent directory must already exist, and an existing
+file at that path is overwritten. Returns `path` on success, or `None`
+if the interpreter ended on an irrecoverable error or the destination is
+invalid.
+
+#### `.exit() -> dict[str, int | str] | None`
+
+Fetches the final state (same as `get_state("all")`), then frees the
+interpreter's underlying memory/register resources — call this once
+you're done inspecting state and won't need the interpreter instance
+again. Returns `None` instead if the interpreter ended on an
+irrecoverable error, in which case there's no valid state to return.
 
 ```python
 from interpreter import Interpreter, ExitCode
 
-# Initialize the CPU simulator with an assembly program
-sim = Interpreter("path/to/program.asm")
+# Initialize the CPU simulator with an assembly program.
+# args=[] would trigger an interactive prompt - pass a placeholder
+# list instead if the program doesn't read argv.
+sim = Interpreter("path/to/program.asm", args=["_"])
 
 # Execute program until termination or error
 exit_status = sim.run()
 
 if exit_status == ExitCode.SUCCESS:
-    # Inspect final CPU registers or memory state
-    print(f"Registers: {sim.get_state("registers")}")
+    # Inspect final CPU registers or memory state (hex by default)
+    print(f"Registers: {sim.get_state('registers')}")
+
+    # Export the full final state to a JSON file, in decimal
+    sim.to_json("run_state.json", numerical_representation=10)
 else:
     print(f"Execution failed with status: {exit_status}")
+
+# Free the interpreter's underlying resources once you're done with it
+sim.exit()
 ```
 
 ---
 
 ## Pipeline
+
+A `.asm` file is mapped once (symbol table, memory layout), then executed
+one instruction at a time: the control unit fetches and decodes each
+instruction, dispatches it to the matching Functional Unit, which calls
+into the compiled C engine through the ctypes bridge layer.
 
 ```text
 .asm file
@@ -209,7 +333,7 @@ logic lives in C.
 
 1. **Caller Level**: During the data parsing phase the data size is found and the data itself is parsed to a python bytes type for easier pre-validation.
 
-2. **Definitive Level**: The Data_Memory class ensures the bytes object perfectly match the requires hardware size before the write occurs and calls on the c write operation to the data buffer created with the specific size.
+2. **Definitive Level**: The Data_Memory class ensures the bytes object perfectly match the required hardware size before the write occurs and calls on the c write operation to the data buffer created with the specific size.
 
 #### Structure of processed values to be written:
 
@@ -240,9 +364,31 @@ Memory reading will follow the same structure of the writing, returning the firs
 
 Reading will always take a start address and a number of bytes to read. This method then will start reading bytes at the given address and stop only when the number of bytes above that address is met or a null value is found.
 
+> **Note:** the internal reads described above always operate on raw
+> bytes. When fetching state for external use via `get_state()` /
+> `to_json()`, values can additionally be rendered in decimal, binary,
+> octal, or hexadecimal — see the `numerical_representation` parameter in
+> the [Programmatic Python API](#programmatic-python-api) section.
+
 ---
 
 ## Code format and syntax references
+
+### Supported instructions
+
+| Category | Instructions |
+| :--- | :--- |
+| **Data movement** | `mov`, `lea`, `push`, `pop` |
+| **Control flow** | `call`, `ret`, `jmp` |
+| **Conditional jumps** | `je`/`jz`, `jne`/`jnz`, `jb`/`jc`/`jnae`, `jnb`/`jnc`/`jae`, `ja`/`jnbe`, `jbe`/`jna`, `jl`/`jnge`, `jge`/`jnl`, `jg`/`jnle`, `jle`/`jng`, `js`, `jns`, `jo`, `jno`, `jp`/`jpe`, `jnp`/`jpo` |
+| **Arithmetic** | `add`, `adc`, `sub`, `sbb`, `inc`, `dec`, `cmp`, `mul`, `imul`, `div`, `idiv` |
+| **Bitwise logic** | `and`, `or`, `xor`, `not`, `neg`, `xchg` |
+| **Shifts & rotates** | `shl`/`sal`, `shr`, `sar`, `rol`, `ror`, `rcl`, `rcr` |
+| **System calls** | `syscall` — see [Exit codes status reference](#exit-codes-status-reference) for related error codes; refer to `bridges/syscall.py` for the specific syscall numbers currently supported |
+
+`mul`/`imul`/`div`/`idiv` only support the standard single-operand NASM
+form (e.g. `mul rbx`, not the two/three-operand `imul` variants).
+FPU instructions are not yet implemented — see [Roadmap](#roadmap).
 
 ### Allowed declarations
 
@@ -360,9 +506,15 @@ The application returns the following exit codes to indicate success or specific
 
 ## Roadmap
 
+### Recently added
+
+- Signed and unsigned multiplication/division (`mul`, `imul`, `div`, `idiv`, single-operand NASM form only);
+- Bit shifts and rotations, with and without carry (`shl`/`sal`, `shr`, `sar`, `rol`, `ror`, `rcl`, `rcr`);
+- Configurable numeric representation (decimal, binary, octal, hexadecimal) for `get_state()`/`to_json()` output.
+
 ### Planned improvement
 
-- Implement FPU operations and logic operations not yet available (rotations and shifts);
+- Implement FPU operations, not yet available;
 
 - Reinforcing the syscall's supported by the program;
 
@@ -372,4 +524,4 @@ The application returns the following exit codes to indicate success or specific
 
 ## Contributors
 
-### - João Louro @FCUL comp. science year 1
+### - João Louro @FCUL

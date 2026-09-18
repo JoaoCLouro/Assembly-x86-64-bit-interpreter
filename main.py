@@ -72,7 +72,7 @@ def valid_file(file_path: str) -> bool:
         return False
     return True
 
-def get_args(args_list: list[str]) -> list[str] | None:
+def get_args() -> list[str] | None:
     """
     Get command line arguments from user input.
 
@@ -95,7 +95,7 @@ def parse_args(args_list: list[str]) -> tuple[list[list[bool]], list[str] | None
     """
     accept_args_state: bool = False
     seen_args: list[list[bool]] = [[False, False], [False, False]]  # [debugging, strick_mode]
-    parsed_args: list[str] = []
+    parsed_args: list[str] | None = []
     for arg in args_list:
         if arg == "-d":
             seen_args[0] = [True, True]
@@ -107,6 +107,8 @@ def parse_args(args_list: list[str]) -> tuple[list[list[bool]], list[str] | None
                 continue
             if accept_args_state:
                 parsed_args.append(arg)
+    if not parsed_args and not seen_args[1][1]:  # If no arguments are provided and strick mode is not enabled, prompt for arguments
+        parsed_args = get_args()
     return seen_args, parsed_args
 
 def is_debugging():

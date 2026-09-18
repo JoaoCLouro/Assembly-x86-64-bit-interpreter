@@ -30,7 +30,7 @@ def main():
     # first index of each = seen, second index of each = enabled
     # 0 = -d (debugging_flags)
     # 1 = -s (strick mode)
-    (seen_flags, argv) = parse_args(sys.argv[2:])
+    (flags, argv) = parse_args(sys.argv[2:])
 
     if argv is None:
         argvcount: int = 0
@@ -39,7 +39,7 @@ def main():
 
     loader: Segment_Mapper = Segment_Mapper(file, argvcount, argv) 
     # Debugging mode is only reprompted if neither -d nor -s flags are seen, otherwise is defaulted to false
-    cpu: Control_Unit = Control_Unit(loader, is_debugging() if not seen_flags[0] and not seen_flags[1][1] else False) 
+    cpu: Control_Unit = Control_Unit(loader, is_debugging() if not flags[0] and not flags[1] else False) 
     print(f"CPU State Code: \n {cpu.run()}")
     print(f"Final State: \n {cpu.get_state("all")}")
 
@@ -84,30 +84,30 @@ def get_args() -> list[str] | None:
     args: list[str] = user_input.split() if user_input.strip() else []
     return args if args else None
 
-def parse_args(args_list: list[str]) -> tuple[list[list[bool]], list[str] | None]:
+def parse_args(args_list: list[str]) -> tuple[list[bool], list[str] | None]:
     """
     Parse command line arguments from a list.
 
     :param args_list: List of command line arguments
     :type args_list: list[str]
     :return: A tuple containing a boolean indicating if debugging is enabled and a list of parsed command line arguments
-    :rtype: (bool, list[str])
+    :rtype: (list[bool], list[str] | None)
     """
     accept_args_state: bool = False
-    seen_args: list[list[bool]] = [[False, False], [False, False]]  # [debugging, strick_mode]
+    seen_args: list[bool] = [False, False]  # [debugging, strick_mode]
     parsed_args: list[str] | None = []
     for arg in args_list:
         if arg == "-d":
-            seen_args[0] = [True, True]
+            seen_args[0] = True
         elif arg == "-s":
-            seen_args[1] = [True, True]
+            seen_args[1] = True
         else:
             if arg == "--":
                 accept_args_state = not accept_args_state
                 continue
             if accept_args_state:
                 parsed_args.append(arg)
-    if not parsed_args and not seen_args[1][1]:  # If no arguments are provided and strick mode is not enabled, prompt for arguments
+    if not parsed_args and not seen_args[1]:  # If no arguments are provided and strick mode is not enabled, prompt for arguments
         parsed_args = get_args()
     return seen_args, parsed_args
 

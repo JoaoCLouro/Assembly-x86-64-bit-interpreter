@@ -40,7 +40,7 @@ def main():
     loader: Segment_Mapper = Segment_Mapper(file, argvcount, argv) 
     # Debugging mode is only reprompted if neither -d nor -s flags are seen, otherwise is defaulted to false
     cpu: Control_Unit = Control_Unit(loader, is_debugging() if not seen_flags[0] and not seen_flags[1][1] else False) 
-    cpu.run()
+    print(f"CPU State Code: \n {cpu.run()}")
     print(f"Final State: \n {cpu.get_state("all")}")
 
 def get_file() -> str:

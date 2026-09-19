@@ -38,8 +38,16 @@ def main():
         argvcount: int = len(argv)
 
     loader: Segment_Mapper = Segment_Mapper(file, argvcount, argv) 
-    # Debugging mode is only reprompted if neither -d nor -s flags are seen, otherwise is defaulted to false
-    cpu: Control_Unit = Control_Unit(loader, is_debugging() if not flags[0] and not flags[1] else False) 
+    # -d forces debugging ON directly. -s (without -d) forces it OFF
+    # without prompting. If neither flag is present, fall back to the
+    # interactive prompt.
+    if flags[0]:
+        debugging = True
+    elif flags[1]:
+        debugging = False
+    else:
+        debugging = is_debugging()
+    cpu: Control_Unit = Control_Unit(loader, debugging) 
     print(f"CPU State Code: \n {cpu.run()}")
     print(f"Final State: \n {cpu.get_state("all")}")
 

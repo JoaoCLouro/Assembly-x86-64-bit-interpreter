@@ -115,6 +115,25 @@ python main.py <path-to-your-asm-file>
 python main.py
 ```
 
+**Flags**, appended after the file path, control debugging mode and how
+the simulated program's own arguments (`argv`) are supplied:
+
+```bash
+python main.py program.asm -d -- arg1 arg2
+python main.py program.asm -s
+```
+
+| Flag | Effect |
+| :--- | :--- |
+| `-d` | Forces debugging mode **on** (trap-flag single-step execution) — skips the interactive yes/no prompt. |
+| `-s` | Strict mode: forces debugging **off** and skips prompting for the program's `argv` if none were supplied via `--`. |
+| `--` | Toggles whether following tokens are collected as the simulated program's `argv`. Everything between a `--` and the next `--` (or end of the command line) is passed through as an argument. |
+
+If neither `-d` nor `-s` is present, you're prompted interactively for
+debugging mode. If no arguments follow `--` (or `--` is never given) and
+`-s` isn't set, you're prompted interactively for the program's `argv`
+instead of it defaulting to none.
+
 ### Programmatic Python API
 
 The top-level `interpreter` package exposes `Interpreter` and `ExitCode` for
@@ -524,4 +543,4 @@ The application returns the following exit codes to indicate success or specific
 
 ## Contributors
 
-### - João Louro @FCUL
+### - João Louro @FCUL comp. science year 1

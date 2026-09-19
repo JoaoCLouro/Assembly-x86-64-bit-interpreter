@@ -1,5 +1,7 @@
 import os
 import sys
+
+from interpreter.exit_codes import ExitCode
 from interpreter._src.parsing.segment_mapper import Segment_Mapper
 from interpreter._src.parsing.control_unit import Control_Unit
 from interpreter._src.helpers.storage import Storage
@@ -209,7 +211,7 @@ def is_debugging():
                 continue
     return True if debugging == 1 else False
 
-def export_state(path: str, state: dict[str, int | str], exit_code) -> None:
+def export_state(path: str, state: dict[str, int | str], exit_code: ExitCode) -> None:
     """
     Exports the final state to a JSON file at the given path, mirroring
     Interpreter_x86.to_json()'s behavior: only writes if the parent

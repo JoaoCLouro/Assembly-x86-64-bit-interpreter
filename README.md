@@ -115,18 +115,25 @@ python main.py <path-to-your-asm-file>
 python main.py
 ```
 
-**Flags**, appended after the file path, control debugging mode and how
-the simulated program's own arguments (`argv`) are supplied:
+**Flags**, appended after the file path, control debugging mode, output
+formatting/export, and how the simulated program's own arguments (`argv`)
+are supplied:
 
 ```bash
 python main.py program.asm -d -- arg1 arg2
-python main.py program.asm -s
+python main.py program.asm -s -r 16 -o state.json
+python main.py program.asm -q -o state.json
+python main.py --help
 ```
 
 | Flag | Effect |
 | :--- | :--- |
 | `-d` | Forces debugging mode **on** (trap-flag single-step execution) — skips the interactive yes/no prompt. |
 | `-s` | Strict mode: forces debugging **off** and skips prompting for the program's `argv` if none were supplied via `--`. |
+| `-r`, `--num-rep <base>` | Numeric base for the final-state printout/export: `2`, `8`, `10` (default), or `16` — same bases `get_state()`/`to_json()` support in the [Python API](#programmatic-python-api). An unsupported or missing value falls back to `10` with a warning. |
+| `-o`, `--output <path>` | Exports the final state as JSON to `<path>` (its parent directory must already exist), mirroring `Interpreter_x86.to_json()`. Skipped if the interpreter ended on an irrecoverable error. |
+| `-q`, `--quiet` | Suppresses the `CPU State Code` / `Final State` printout — useful when only the exported file (`-o`) or the process's own state matters. |
+| `-h`, `--help` | Prints usage help and exits immediately, before any file/argument parsing. |
 | `--` | Toggles whether following tokens are collected as the simulated program's `argv`. Everything between a `--` and the next `--` (or end of the command line) is passed through as an argument. |
 
 If neither `-d` nor `-s` is present, you're prompted interactively for

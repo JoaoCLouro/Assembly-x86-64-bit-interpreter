@@ -242,12 +242,11 @@ class Data_Path:
         op2_size = op2.size
 
         # 5. Operand size mismatch check
-        if op1_size and op2_size and not op2_type == 2:
-            if op1_size != op2_size:
-                raise SyntaxError(
-                    f"Operand size mismatch for MOV instruction: "
-                    f"Destination size is {op1_size} byte(s), but source size is {op2_size} byte(s)."
-                )
+        if op1_size and op2_size and op2_type != 2 and op1_size != op2_size:
+            raise SyntaxError(
+                f"Operand size mismatch for MOV instruction: "
+                f"Destination size is {op1_size} byte(s), but source size is {op2_size} byte(s)."
+            )
 
         # 6. High-register byte access mismatch
         if op1.is_high and not op2.is_high and op2_size == 8:
@@ -452,9 +451,7 @@ class Data_Path:
         if op1_type == 1:  # REGISTER
             val = int.from_bytes(val, "little") if isinstance(val, bytes) else val  # type: ignore
             try:
-                self.registers.write_reg(
-                    op1.expression, val, True if op1.is_signed else False
-                )
+                self.registers.write_reg(op1.expression, val, bool(op1.is_signed))
             except ValueError as e:
                 raise RuntimeError(e) from e
 

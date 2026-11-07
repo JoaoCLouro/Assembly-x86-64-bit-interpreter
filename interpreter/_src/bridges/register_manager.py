@@ -1,5 +1,6 @@
 import ctypes
 import os
+from typing import ClassVar
 
 # ---------------------
 # Registers interface
@@ -8,10 +9,15 @@ import os
 
 class Registers_Interface:
     # Mapping of the sizes of the registers according to their directives
-    SIZE_DIRECTIVES = {"byte": 1, "word": 2, "dword": 4, "qword": 8}
+    SIZE_DIRECTIVES: ClassVar[dict[str, int]] = {
+        "byte": 1,
+        "word": 2,
+        "dword": 4,
+        "qword": 8,
+    }
 
     # Parent registers mapping to get indexes
-    REGISTERS_MAP = [
+    REGISTERS_MAP: ClassVar[list[str]] = [
         "rax",
         "rbx",
         "rcx",
@@ -32,8 +38,18 @@ class Registers_Interface:
 
     # Sub-registers that don't follow the regular suffix pattern and map straight
     # to an r-prefixed 64-bit parent (16-bit form -> parent, 8-bit form -> parent)
-    EXTENDED_16BIT = {"si": "rsi", "di": "rdi", "bp": "rbp", "sp": "rsp"}
-    EXTENDED_8BIT = {"sil": "rsi", "dil": "rdi", "bpl": "rbp", "spl": "rsp"}
+    EXTENDED_16BIT: ClassVar[dict[str, str]] = {
+        "si": "rsi",
+        "di": "rdi",
+        "bp": "rbp",
+        "sp": "rsp",
+    }
+    EXTENDED_8BIT: ClassVar[dict[str, str]] = {
+        "sil": "rsi",
+        "dil": "rdi",
+        "bpl": "rbp",
+        "spl": "rsp",
+    }
 
     # Class attributes for the library and the pointer to the registers structure in c
     __slots__ = ["_cleaned", "lib", "regs"]
@@ -238,7 +254,7 @@ class Registers_Interface:
             return parent, self.SIZE_DIRECTIVES["word"]
 
         # 8-bit
-        if reg.endswith("l") or reg.endswith("h") or reg.endswith("b"):
+        if reg.endswith(("l", "h", "b")):
             parent = "r" + reg[:-1] + "x" if len(reg) == 2 else reg[:-1]
             return parent, self.SIZE_DIRECTIVES["byte"]
 
@@ -298,7 +314,7 @@ class Registers_Interface:
         :return: Value of the trap flag
         :rtype: int
         """
-        return True if int(self.lib.read_trap_flag(self.regs)) == 1 else False
+        return int(self.lib.read_trap_flag(self.regs)) == 1
 
     def Exch_trap_flag(self) -> None:
         """
@@ -310,31 +326,31 @@ class Registers_Interface:
         """
         Reads the value of the carry flag in the c structure file and returns its value as a bool
         """
-        return True if int(self.lib.read_carry_flag(self.regs)) == 1 else False
+        return int(self.lib.read_carry_flag(self.regs)) == 1
 
     def read_overflow(self) -> bool:
         """
         Reads the value of the overflow flag in the c structure file and returns its value as a bool
         """
-        return True if int(self.lib.read_overflow_flag(self.regs)) == 1 else False
+        return int(self.lib.read_overflow_flag(self.regs)) == 1
 
     def read_zero(self) -> bool:
         """
         Reads the value of the zero flag in the c structure file and returns its value as a bool
         """
-        return True if int(self.lib.read_zero_flag(self.regs)) == 1 else False
+        return int(self.lib.read_zero_flag(self.regs)) == 1
 
     def read_sign(self) -> bool:
         """
         Reads the value of the sign flag in the c structure file and returns its value as a bool
         """
-        return True if int(self.lib.read_sign_flag(self.regs)) == 1 else False
+        return int(self.lib.read_sign_flag(self.regs)) == 1
 
     def read_parity(self) -> bool:
         """
         Reads the value of the parity flag in the c structure file and returns its value as a bool
         """
-        return True if int(self.lib.read_parity_flag(self.regs)) == 1 else False
+        return int(self.lib.read_parity_flag(self.regs)) == 1
 
     def exch_flag(self, flag_id: int) -> None:
         """

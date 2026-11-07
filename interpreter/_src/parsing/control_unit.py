@@ -7,9 +7,9 @@ from interpreter.exit_codes import ExitCode
 from ..bridges.data_memory import Data_Memory
 from ..bridges.register_manager import Registers_Interface
 from ..bridges.syscall import Syscall
-from ..FUs.alu import ALU
-from ..FUs.data_path import Data_Path
-from ..FUs.fpu import FPU
+from ..functional_units.alu import ALU
+from ..functional_units.data_path import Data_Path
+from ..functional_units.fpu import FPU
 from ..helpers.my_types import (
     FU,
     BssSectionInfo,
@@ -125,11 +125,8 @@ class Control_Unit:
                 self._execute_state_command()
             try:
                 self._step()
-            except Exception as e:
-                print(f"CPU Exception at line {self.rip}: {e}")
-                self.finished = True
             except SystemExit as e:
-                print(f"Exit due to {e}")
+                print(f"Exit due to {e} at line {self.rip + 1}.")
                 return e.code  # type: ignore
         return ExitCode.SUCCESS
 
@@ -180,6 +177,7 @@ class Control_Unit:
     # ---------------------------------
 
     def _step(self) -> None:
+        """Method to execute a singe instruction"""
         try:
             # 1. Gets the instruction, operands and functional unit in use and verifies it's compatibility it the operator count of the instruction
             if self.rip < len(self.text_section):
@@ -297,7 +295,7 @@ class Control_Unit:
             self.current_fu = "cpu"
             return True
 
-        for functional_units in INSTRUCTIONS.keys():
+        for functional_units in INSTRUCTIONS:
             if instruction in INSTRUCTIONS[functional_units]:
                 self.current_fu = functional_units
                 self.instruction_parser.expected_op_count = INSTRUCTIONS[
@@ -535,7 +533,10 @@ class Control_Unit:
         if not var_names:
             return {}
 
-        return dict(self._fetch_section_values(section, var_names, num_rep))
+        return {
+            name: value
+            for name, value in self._fetch_section_values(section, var_names, num_rep)
+        }
 
     def _get_registers_state(self, num_rep: int) -> dict[str, int | str]:
         """

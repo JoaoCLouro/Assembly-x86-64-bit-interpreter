@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 
@@ -225,7 +227,7 @@ def is_debugging():
                 debugging = 0
             case _:
                 continue
-    return True if debugging == 1 else False
+    return debugging == 1
 
 
 def export_state(path: str, state: dict[str, int | str], exit_code: ExitCode) -> None:

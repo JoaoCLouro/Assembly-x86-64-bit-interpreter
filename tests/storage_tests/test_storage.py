@@ -130,7 +130,7 @@ class TestLoadFile:
         assert Storage.load_file("notes.txt") == "hello low level world"
 
     def test_exits_process_when_file_missing(self, capsys):
-        with pytest.raises(SystemExit) as exc_info:
+        with pytest.raises(SystemExit):
             Storage.load_file("does_not_exist.txt")
         assert "couldn't be opened" in capsys.readouterr().out
 

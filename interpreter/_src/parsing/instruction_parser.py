@@ -507,14 +507,14 @@ class Instruction_Parser:
                 reg, scale = term.split("*")
                 try:
                     value = self.registers.read_reg(reg) * int(scale)
-                except Exception:
+                except (KeyError, ValueError):
                     raise SyntaxError(
                         f"INVALID REGISTER NAME {reg} AT LINE {self.rip}!"
                     )
             elif self.is_register(term):
                 try:
                     value = self.registers.read_reg(term)
-                except Exception:
+                except (KeyError, ValueError):
                     raise SyntaxError(
                         f"INVALID REGISTER NAME {term} AT LINE {self.rip}!"
                     )

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 # Adjust import path as needed for your module
-from interpreter._src.FUs.data_path import Data_Path
+from interpreter._src.functional_units.data_path import Data_Path
 
 # -----------------------------------------------------------------------------
 # Fixtures

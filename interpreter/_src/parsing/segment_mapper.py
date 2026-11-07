@@ -491,7 +491,6 @@ class Segment_Mapper:
         formatted_tokens = []
 
         for elem in tokens:
-            quote_char = ""
             if (
                 elem.startswith('"')
                 and elem.endswith('"')
@@ -830,9 +829,7 @@ class Segment_Mapper:
         :return: True if label is a constant, False otherwise
         :rtype: bool
         """
-        if label in self.constants:
-            return True
-        return False
+        return label in self.constants
 
     def common_constant_declaration_validation(
         self, line: list[str], label: str, index: int
@@ -1241,11 +1238,10 @@ class Segment_Mapper:
         :rtype: bool
         """
         name = name.strip(":")
-        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name) or re.fullmatch(
-            rf"(?:{_RESERVED_KEYWORDS_PATTERN})", name, re.IGNORECASE
-        ):
-            return False
-        return True
+        return not (
+            not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name)
+            or re.fullmatch(rf"(?:{_RESERVED_KEYWORDS_PATTERN})", name, re.IGNORECASE)
+        )
 
     @staticmethod
     def _is_numeric(s: str) -> bool:
@@ -1280,9 +1276,12 @@ class Segment_Mapper:
             return True
 
         # Check for char/string constants
-        if len(val) >= 3 and (
-            (val.startswith("'") and val.endswith("'"))
-            or (val.startswith('"') and val.endswith('"'))
-        ):
-            return True
-        return False
+        return bool(
+            len(val) >= 3
+            and (
+                val.startswith("'")
+                and val.endswith("'")
+                or val.startswith('"')
+                and val.endswith('"')
+            )
+        )

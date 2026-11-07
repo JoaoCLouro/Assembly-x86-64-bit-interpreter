@@ -16,11 +16,12 @@ Run with: pytest tests/FUs/test_fpu.py -v
 
 import ctypes
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from interpreter._src.FUs.fpu import FPU, FPU_OPCODES
+from interpreter._src.functional_units.fpu import FPU, FPU_OPCODES
 from interpreter._src.parsing.patter_matching_helpers import INSTRUCTIONS
 
 pytestmark = pytest.mark.skipif(
@@ -30,7 +31,14 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def make_op(address=0, type_=0, size=4, is_high=0, is_signed=0, valid=True):
+def make_op(
+    address: int = 0,
+    type_: int = 0,
+    size: int = 4,
+    is_high: int = 0,
+    is_signed: int = 0,
+    valid: bool = True,
+) -> Any:
     op = SimpleNamespace(
         address=address, type=type_, size=size, is_high=is_high, is_signed=is_signed
     )
@@ -49,7 +57,7 @@ def mock_memory():
 
 
 @pytest.fixture
-def fpu(mock_registers, mock_memory):
+def fpu(mock_registers: MagicMock, mock_memory: MagicMock):
     """An FPU backed by a MagicMock instead of a real .so."""
     with patch("ctypes.CDLL") as mock_cdll:
         mock_lib = MagicMock()
@@ -68,7 +76,7 @@ def fpu(mock_registers, mock_memory):
 
 class TestConstruction:
     def test_creates_operand_state_and_wires_registers_and_memory(
-        self, mock_registers, mock_memory
+        self, mock_registers: MagicMock, mock_memory: MagicMock
     ):
         with patch("ctypes.CDLL") as mock_cdll:
             mock_lib = MagicMock()
@@ -84,7 +92,7 @@ class TestConstruction:
             mock_lib.set_table_ref.assert_called_once_with(state, mock_memory)
             assert instance.state == state
 
-    def test_set_operand_info_argtypes_match_header_order(self, fpu):
+    def test_set_operand_info_argtypes_match_header_order(self, fpu: FPU):
         # operations.h: set_operand_info(Info*, char*, long long address,
         # uint8_t size, uint8_t op_type, uint8_t is_high, uint8_t is_signed)
         argtypes = fpu.lib.set_operand_info.argtypes
@@ -94,7 +102,7 @@ class TestConstruction:
         assert argtypes[5] is ctypes.c_uint8  # is_high
         assert argtypes[6] is ctypes.c_uint8  # is_signed
 
-    def test_set_instruction_argtype_is_uint8(self, fpu):
+    def test_set_instruction_argtype_is_uint8(self, fpu: FPU):
         assert fpu.lib.set_instruction.argtypes[1] is ctypes.c_uint8
 
 
@@ -104,27 +112,29 @@ class TestConstruction:
 
 
 class TestLoadValues:
-    def test_clean_called_before_set_instruction(self, fpu):
+    def test_clean_called_before_set_instruction(self, fpu: FPU):
         name = next(iter(FPU_OPCODES))
         fpu.load_values(name, make_op(valid=False), make_op(valid=False))
 
-        method_order = [c[0] for c in fpu.lib.method_calls]
+        method_order = [c[0] for c in getattr(fpu.lib, "method_calls", [])]
         assert method_order.index("clean") < method_order.index("set_instruction")
 
-    def test_set_instruction_called_with_offset_opcode(self, fpu):
+    def test_set_instruction_called_with_offset_opcode(self, fpu: FPU):
         name = next(iter(FPU_OPCODES))
         fpu.load_values(name, make_op(valid=False), make_op(valid=False))
 
         expected_opcode = FPU_OPCODES[name] + len(INSTRUCTIONS["alu"])
-        fpu.lib.set_instruction.assert_called_once_with(fpu.state, expected_opcode)
+        cast(MagicMock, fpu.lib.set_instruction).assert_called_once_with(
+            fpu.state, expected_opcode
+        )
 
-    def test_set_operand_info_called_with_size_before_op_type(self, fpu):
+    def test_set_operand_info_called_with_size_before_op_type(self, fpu: FPU):
         op1 = make_op(address=0x1000, type_=2, size=8, is_high=0, is_signed=1)
         name = next(iter(FPU_OPCODES))
 
         fpu.load_values(name, op1, make_op(valid=False))
 
-        fpu.lib.set_operand_info.assert_called_once_with(
+        cast(MagicMock, fpu.lib.set_operand_info).assert_called_once_with(
             fpu.state,
             b"op1",
             0x1000,
@@ -134,26 +144,30 @@ class TestLoadValues:
             1,  # is_signed
         )
 
-    def test_both_operands_loaded_when_valid(self, fpu):
+    def test_both_operands_loaded_when_valid(self, fpu: FPU):
         op1 = make_op(address=0x1000, type_=1, size=4)
         op2 = make_op(address=0x2000, type_=2, size=8)
         name = next(iter(FPU_OPCODES))
 
         fpu.load_values(name, op1, op2)
 
-        assert fpu.lib.set_operand_info.call_count == 2
-        fpu.lib.set_operand_info.assert_any_call(fpu.state, b"op1", 0x1000, 4, 1, 0, 0)
-        fpu.lib.set_operand_info.assert_any_call(fpu.state, b"op2", 0x2000, 8, 2, 0, 0)
+        assert cast(MagicMock, fpu.lib.set_operand_info).call_count == 2
+        cast(MagicMock, fpu.lib.set_operand_info).assert_any_call(
+            fpu.state, b"op1", 0x1000, 4, 1, 0, 0
+        )
+        cast(MagicMock, fpu.lib.set_operand_info).assert_any_call(
+            fpu.state, b"op2", 0x2000, 8, 2, 0, 0
+        )
 
-    def test_invalid_operands_are_skipped(self, fpu):
+    def test_invalid_operands_are_skipped(self, fpu: FPU):
         name = next(iter(FPU_OPCODES))
         fpu.load_values(name, make_op(valid=False), make_op(valid=False))
-        fpu.lib.set_operand_info.assert_not_called()
+        cast(MagicMock, fpu.lib.set_operand_info).assert_not_called()
 
-    def test_none_operands_are_skipped(self, fpu):
+    def test_none_operands_are_skipped(self, fpu: FPU):
         name = next(iter(FPU_OPCODES))
-        fpu.load_values(name, None, None)
-        fpu.lib.set_operand_info.assert_not_called()
+        fpu.load_values(name, None, None)  # type: ignore
+        cast(MagicMock, fpu.lib.set_operand_info).assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -162,9 +176,9 @@ class TestLoadValues:
 
 
 class TestExecute:
-    def test_execute_calls_dispatch_with_state(self, fpu):
+    def test_execute_calls_dispatch_with_state(self, fpu: FPU):
         fpu.execute()
-        fpu.lib.dispatch.assert_called_once_with(fpu.state)
+        cast(MagicMock, fpu.lib).dispatch.assert_called_once_with(fpu.state)
 
 
 # ---------------------------------------------------------------------------
@@ -173,10 +187,10 @@ class TestExecute:
 
 
 class TestDel:
-    def test_del_frees_operand_state(self, fpu):
+    def test_del_frees_operand_state(self, fpu: FPU):
         state = fpu.state
         fpu.__del__()
-        fpu.lib.free_operand_state.assert_called_once_with(state)
+        cast(MagicMock, fpu.lib).free_operand_state.assert_called_once_with(state)
 
 
 # ---------------------------------------------------------------------------

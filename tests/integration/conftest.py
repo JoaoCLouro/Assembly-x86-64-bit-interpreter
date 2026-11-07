@@ -111,7 +111,7 @@ class AsmResult:
             self.state = json.loads(json_part)
 
     @property
-    def registers(self) -> dict:
+    def registers(self) -> dict[str, object]:
         assert self.state is not None, (
             f"No state was captured (process may have crashed before "
             f"finishing). stderr:\n{self.stderr}"
@@ -133,6 +133,7 @@ def run_asm():
 
         proc = subprocess.run(
             [sys.executable, str(RUNNER), str(asm_path)],
+            check=False,
             capture_output=True,
             text=True,
             timeout=timeout,

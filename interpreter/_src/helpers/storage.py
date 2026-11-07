@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import json
 import os
 import sys
@@ -63,7 +65,7 @@ class Storage:
             try:
                 if os.path.isfile(file_path):
                     os.remove(file_path)
-            except Exception as e:
+            except OSError as e:
                 print(f"Error while deleting file {file_path}: {e}")
 
     @staticmethod

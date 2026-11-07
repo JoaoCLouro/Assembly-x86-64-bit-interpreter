@@ -21,6 +21,13 @@ from .instruction_parser import Instruction_Parser, Operand
 from .patter_matching_helpers import INSTRUCTIONS
 from .segment_mapper import Segment_Mapper
 
+
+class CPUException(Exception):
+    """Base class for errors raised during emulated execution."""
+    def __init__(self, message: str):
+        super().__init__(message)
+
+
 _count = os.cpu_count()
 TOTAL_THREADS: int = _count if _count != None else 0
 
@@ -125,6 +132,9 @@ class Control_Unit:
                 self._execute_state_command()
             try:
                 self._step()
+            except CPUException as e:   # Debugging Exception
+                print(f"CPU Exception: {e} at line {self.rip + 1}.")
+                self.finished = True
             except SystemExit as e:
                 print(f"Exit due to {e} at line {self.rip + 1}.")
                 return e.code  # type: ignore

@@ -17,12 +17,14 @@ execute_state_command's interactive input() loop is intentionally out of
 scope for this suite.
 """
 
+from typing import NoReturn
 from unittest.mock import Mock
 
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 
 from interpreter._src.parsing import control_unit as cu_module
-from interpreter._src.parsing.control_unit import Control_Unit
+from interpreter._src.parsing.control_unit import CPUException, Control_Unit
 from interpreter._src.parsing.instruction_parser import Operand
 from interpreter.exit_codes import ExitCode
 
@@ -494,21 +496,20 @@ class TestRun:
         assert debug_called["called"] is True
 
     def test_run_catches_exceptions_from_step_and_marks_finished(
-        self, control_unit, monkeypatch, capsys
+        self, control_unit: Control_Unit, monkeypatch: MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ):
         control_unit.rip = -1
         control_unit.registers.read_trap_flag.return_value = 0
 
         def raising_step(self):
-            raise RuntimeError("something went wrong")
+            raise CPUException("something went wrong")
 
-        monkeypatch.setattr(Control_Unit, "_step", raising_step)
+        monkeypatch.setattr(type(control_unit), "_step", raising_step)
 
-        control_unit.run()  # must not propagate the exception
+        control_unit.run()
 
         assert control_unit.finished is True
-        captured = capsys.readouterr()
-        assert "CPU Exception" in captured.out
+        assert "CPU Exception" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------

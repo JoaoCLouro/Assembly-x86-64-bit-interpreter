@@ -20,16 +20,20 @@ an integration test against the compiled .so (see test_register_manager_integrat
 
 Run with: pytest tests/bridge/test_register_manager.py -v
 """
+
+import ctypes
 import os
 import sys
-import ctypes
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 # Make `bridges/` importable the same way data_memory.py expects
 # (it does `from register_manager import Registers_Interface`, a flat import).
-_BRIDGES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "bridges")
+_BRIDGES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "bridges",
+)
 if _BRIDGES_DIR not in sys.path:
     sys.path.insert(0, _BRIDGES_DIR)
 
@@ -53,6 +57,7 @@ def regs():
 # Library loading
 # ---------------------------------------------------------------------------
 
+
 class TestLibraryLoading:
     def test_loads_from_project_root_lib_dir(self):
         """lib/ is one directory above bridges/, not inside it."""
@@ -65,14 +70,19 @@ class TestLibraryLoading:
             called_path = mock_cdll.call_args[0][0]
             assert called_path.endswith(os.path.join("lib", "libreg.so"))
             # bridges/ itself must NOT be the parent of the resolved lib/ dir
-            assert os.path.basename(os.path.dirname(os.path.dirname(called_path))) != "bridges"
+            assert (
+                os.path.basename(os.path.dirname(os.path.dirname(called_path)))
+                != "bridges"
+            )
 
     def test_regs_pointer_uses_configured_restype(self):
         """CPURegs_create.restype must be set to c_void_p before it's called,
         otherwise ctypes truncates the pointer to a default int."""
         with patch("ctypes.CDLL") as mock_cdll:
             mock_lib = MagicMock()
-            mock_lib.CPURegs_create.return_value = 0x7F0000000000  # doesn't fit in 32-bit int
+            mock_lib.CPURegs_create.return_value = (
+                0x7F0000000000  # doesn't fit in 32-bit int
+            )
             mock_cdll.return_value = mock_lib
             instance = Registers_Interface()
 
@@ -84,41 +94,56 @@ class TestLibraryLoading:
 # get_register_parent / is_high
 # ---------------------------------------------------------------------------
 
+
 class TestRegisterResolution:
-    @pytest.mark.parametrize("expression,expected_parent,expected_size", [
-        # 64-bit
-        ("rax", "rax", 8),
-        ("r8", "r8", 8),
-        # 32-bit
-        ("eax", "rax", 4),
-        ("r8d", "r8", 4),
-        # 16-bit, regular suffix pattern
-        ("ax", "rax", 2),
-        ("r8w", "r8", 2),
-        # 16-bit, irregular names
-        ("si", "rsi", 2),
-        ("di", "rdi", 2),
-        ("bp", "rbp", 2),
-        ("sp", "rsp", 2),
-        # 8-bit, regular suffix pattern
-        ("al", "rax", 1),
-        ("ah", "rax", 1),
-        ("r8b", "r8", 1),
-        # 8-bit, irregular names
-        ("sil", "rsi", 1),
-        ("dil", "rdi", 1),
-        ("bpl", "rbp", 1),
-        ("spl", "rsp", 1),
-    ])
-    def test_resolves_correct_parent_and_size(self, regs, expression, expected_parent, expected_size):
+    @pytest.mark.parametrize(
+        "expression,expected_parent,expected_size",
+        [
+            # 64-bit
+            ("rax", "rax", 8),
+            ("r8", "r8", 8),
+            # 32-bit
+            ("eax", "rax", 4),
+            ("r8d", "r8", 4),
+            # 16-bit, regular suffix pattern
+            ("ax", "rax", 2),
+            ("r8w", "r8", 2),
+            # 16-bit, irregular names
+            ("si", "rsi", 2),
+            ("di", "rdi", 2),
+            ("bp", "rbp", 2),
+            ("sp", "rsp", 2),
+            # 8-bit, regular suffix pattern
+            ("al", "rax", 1),
+            ("ah", "rax", 1),
+            ("r8b", "r8", 1),
+            # 8-bit, irregular names
+            ("sil", "rsi", 1),
+            ("dil", "rdi", 1),
+            ("bpl", "rbp", 1),
+            ("spl", "rsp", 1),
+        ],
+    )
+    def test_resolves_correct_parent_and_size(
+        self, regs, expression, expected_parent, expected_size
+    ):
         parent, size = regs.get_register_parent(expression)
         assert parent == expected_parent
         assert size == expected_size
 
-    @pytest.mark.parametrize("expression,expected", [
-        ("ah", 1), ("bh", 1), ("ch", 1), ("dh", 1),
-        ("al", 0), ("bl", 0), ("r8b", 0), ("sil", 0),
-    ])
+    @pytest.mark.parametrize(
+        "expression,expected",
+        [
+            ("ah", 1),
+            ("bh", 1),
+            ("ch", 1),
+            ("dh", 1),
+            ("al", 0),
+            ("bl", 0),
+            ("r8b", 0),
+            ("sil", 0),
+        ],
+    )
     def test_is_high(self, regs, expression, expected):
         assert regs.is_high(expression) == expected
 
@@ -127,15 +152,16 @@ class TestRegisterResolution:
 # write_reg
 # ---------------------------------------------------------------------------
 
+
 class TestWriteReg:
     def test_calls_c_write_reg_with_regs_pointer(self, regs):
         regs.write_reg("eax", 42)
         regs.lib.write_reg.assert_called_once_with(
-            regs.regs,          # this was missing before the fix
-            0,                   # rax's index in REGISTERS_MAP
+            regs.regs,  # this was missing before the fix
+            0,  # rax's index in REGISTERS_MAP
             42,
-            4,                   # dword
-            0,                   # not high
+            4,  # dword
+            0,  # not high
         )
 
     def test_calls_c_set_reg_sign_with_regs_pointer(self, regs):
@@ -170,6 +196,7 @@ class TestWriteReg:
 # read_reg
 # ---------------------------------------------------------------------------
 
+
 class TestReadReg:
     def test_calls_c_read_fn_with_regs_pointer(self, regs):
         regs.lib.read_4b_reg.return_value = 7
@@ -197,31 +224,38 @@ class TestReadReg:
 # Flags
 # ---------------------------------------------------------------------------
 
+
 class TestFlags:
     def test_read_flags_returns_actual_byte_encoding(self, regs):
         regs.lib.read_rflags.return_value = 0x12345678
         assert regs.read_flags() == (0x12345678).to_bytes(4, "little")
 
-    @pytest.mark.parametrize("fn_name,method_name", [
-        ("read_carry_flag", "read_carry"),
-        ("read_zero_flag", "read_zero"),
-        ("read_sign_flag", "read_sign"),
-        ("read_overflow_flag", "read_overflow"),
-        ("read_parity_flag", "read_parity"),
-        ("read_trap_flag", "read_trap_flag"),
-    ])
+    @pytest.mark.parametrize(
+        "fn_name,method_name",
+        [
+            ("read_carry_flag", "read_carry"),
+            ("read_zero_flag", "read_zero"),
+            ("read_sign_flag", "read_sign"),
+            ("read_overflow_flag", "read_overflow"),
+            ("read_parity_flag", "read_parity"),
+            ("read_trap_flag", "read_trap_flag"),
+        ],
+    )
     def test_bool_flags_true(self, regs, fn_name, method_name):
         getattr(regs.lib, fn_name).return_value = 1
         assert getattr(regs, method_name)() is True
 
-    @pytest.mark.parametrize("fn_name,method_name", [
-        ("read_carry_flag", "read_carry"),
-        ("read_zero_flag", "read_zero"),
-        ("read_sign_flag", "read_sign"),
-        ("read_overflow_flag", "read_overflow"),
-        ("read_parity_flag", "read_parity"),
-        ("read_trap_flag", "read_trap_flag"),
-    ])
+    @pytest.mark.parametrize(
+        "fn_name,method_name",
+        [
+            ("read_carry_flag", "read_carry"),
+            ("read_zero_flag", "read_zero"),
+            ("read_sign_flag", "read_sign"),
+            ("read_overflow_flag", "read_overflow"),
+            ("read_parity_flag", "read_parity"),
+            ("read_trap_flag", "read_trap_flag"),
+        ],
+    )
     def test_bool_flags_false(self, regs, fn_name, method_name):
         getattr(regs.lib, fn_name).return_value = 0
         assert getattr(regs, method_name)() is False

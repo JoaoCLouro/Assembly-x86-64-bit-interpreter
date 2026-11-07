@@ -11,6 +11,7 @@ CACHE_DIR = os.path.join(SRC_ROOT, "program_cache")
 LIBREG_PATH = os.path.join(SRC_ROOT, "lib", "libreg.so")
 LIBMMU_PATH = os.path.join(SRC_ROOT, "lib", "libmmu.so")
 
+
 class Storage:
     """
     Utility class for file storage operations.
@@ -20,7 +21,7 @@ class Storage:
 
     Author: João Carilho Louro
     """
-    
+
     @staticmethod
     def _get_path(file_name: str, use_cache: bool = True) -> str:
         """
@@ -46,8 +47,8 @@ class Storage:
         :type file_name: str
         :raises ValueError: If the file does not have a .json extension.
         """
-        if not file_name.endswith('.json'):
-            raise ValueError(f"File '{file_name}' must have a .json extension.")    
+        if not file_name.endswith(".json"):
+            raise ValueError(f"File '{file_name}' must have a .json extension.")
 
     @staticmethod
     def clean_cache() -> None:
@@ -87,17 +88,19 @@ class Storage:
         """
         src_path = Storage._get_path(file_name, use_cache=False)
         if not os.path.exists(src_path):
-            print(f"Something went wrong! File {file_name} couldn't be opened.\n     Exiting program...\n")
+            print(
+                f"Something went wrong! File {file_name} couldn't be opened.\n     Exiting program...\n"
+            )
             sys.exit(ExitCode.UNOPENABLE_FILE)
 
         raw_text = Storage.load_file(file_name).splitlines()
-        clean_lines : list[str] = []
+        clean_lines: list[str] = []
 
         for line in raw_text:
             clean_line = line.split(";")[0].strip()
             if clean_line:  # Only preserve real instructions and labels
                 clean_lines.append(clean_line)
-        
+
         raw_file_name = os.path.splitext(Storage.get_raw_file_name(file_name))[0]
         new_file_name = f"{raw_file_name}.json"
 
@@ -117,12 +120,14 @@ class Storage:
         """
         Storage._validate_json_extension(file_name)
         file_path = Storage._get_path(file_name)
-        
+
         with open(file_path, "w") as file:
             json.dump(data, file, indent=4)
 
     @staticmethod
-    def save_file_dictionary(file_name: str, data: dict[str, str | dict[str, int]]) -> None:
+    def save_file_dictionary(
+        file_name: str, data: dict[str, str | dict[str, int]]
+    ) -> None:
         """
         Save dictionaries to a JSON file in the project cache directory if it doesn't exist.
 
@@ -133,7 +138,7 @@ class Storage:
         :raises ValueError: if file_name does not end with '.json'
         """
         Storage._validate_json_extension(file_name)
-        file_path = Storage._get_path(file_name)      
+        file_path = Storage._get_path(file_name)
 
         if not os.path.isfile(file_path):
             with open(file_path, "w") as file:
@@ -153,9 +158,11 @@ class Storage:
             with open(file_path, "r") as f:
                 return f.read()
         except FileNotFoundError:
-            print(f"Something went wrong! File {file_name} couldn't be opened.\n     Exiting program...\n")
+            print(
+                f"Something went wrong! File {file_name} couldn't be opened.\n     Exiting program...\n"
+            )
             sys.exit(ExitCode.UNOPENABLE_FILE)
-    
+
     @staticmethod
     def load_file_lines(file_name: str) -> list[str]:
         """

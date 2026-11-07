@@ -1,12 +1,11 @@
+import json
 import os
 import sys
-import json
 
-from.exit_codes import ExitCode
-
-from ._src.parsing.segment_mapper import Segment_Mapper
-from ._src.parsing.control_unit import Control_Unit
 from ._src.helpers.storage import Storage
+from ._src.parsing.control_unit import Control_Unit
+from ._src.parsing.segment_mapper import Segment_Mapper
+from .exit_codes import ExitCode
 
 
 class Interpreter_x86:
@@ -19,10 +18,11 @@ class Interpreter_x86:
     Author: João Carilho Louro
     """
 
+    __slots__ = ["cpu", "loader", "memory", "register", "state", "state_code"]
 
-    __slots__ = ["state", "loader", "cpu", "memory", "register", "state_code"]
-
-    def __init__ (self, file_name:str | None, args: list[str] | None, debugging:bool = False):
+    def __init__(
+        self, file_name: str | None, args: list[str] | None, debugging: bool = False
+    ):
         """
         Initializes and runs the interpreter.\n
         After running you can get the state of the program.\n
@@ -38,15 +38,17 @@ class Interpreter_x86:
 
         Storage.clean_cache()  # Clean cache before starting
 
-        self.loader: Segment_Mapper = Segment_Mapper(file_name, len(args) if args else 0, args)
+        self.loader: Segment_Mapper = Segment_Mapper(
+            file_name, len(args) if args else 0, args
+        )
         self.memory = self.loader.memory
         self.register = self.loader.registers
         self.cpu: Control_Unit = Control_Unit(self.loader, debugging)
 
     def __del__(self):
         # Triggers all state variables cleanup
-        self.cpu = None # type: ignore
-        self.loader = None # type: ignore
+        self.cpu = None  # type: ignore
+        self.loader = None  # type: ignore
         if self.memory:
             self.memory.clean()
         if self.register:
@@ -57,13 +59,16 @@ class Interpreter_x86:
         Runs the interpreter and returns the appropriate exit code sent by the interpreter in case of a savable exit code.\n
         If the program fails at segment parsing returns an unrecoverable exit status
         """
-        self.state_code =  ExitCode.IRRECOVERABLE_ERROR if self.loader.exit_status != ExitCode.SUCCESS else self.cpu.run()
+        self.state_code = (
+            ExitCode.IRRECOVERABLE_ERROR
+            if self.loader.exit_status != ExitCode.SUCCESS
+            else self.cpu.run()
+        )
         return self.state_code
-            
 
     def exit(self) -> dict[str, int | str] | None:
         """
-        Clears all space used by the interpreter's execution components saving its state in an accessible variable 
+        Clears all space used by the interpreter's execution components saving its state in an accessible variable
         or returning None if the exit code was an irrecoverable error.\n
         After calling this method you can access 'self.state' and get the full information of the process when it finished
         This method also returns this same state if needed
@@ -84,18 +89,20 @@ class Interpreter_x86:
         """
         Clears attributes used in by the interpreter
         """
-        self.cpu = None # type: ignore
-        self.loader = None # type: ignore
+        self.cpu = None  # type: ignore
+        self.loader = None  # type: ignore
         if self.memory:
             self.memory.clean()
         if self.register:
             self.register.clean()
-    
+
     # ------------------
     # State Fetching Methods
     # ------------------
 
-    def get_state(self, section: str, numerical_representation: int = 16) -> dict[str, int | str]:
+    def get_state(
+        self, section: str, numerical_representation: int = 16
+    ) -> dict[str, int | str]:
         """
         Returns a snapshot of observable CPU/memory state as a dict of
         name -> current value, for the given named section.\n
@@ -105,21 +112,23 @@ class Interpreter_x86:
         instead of printed to stdout — useful for tests or any caller that
         wants to assert on or further process the state rather than just
         display it.
-            
+
         :param section: Which piece of state to fetch: 'all', 'data', 'rodata', 'bss', or 'registers'
         :type section: str
         :param num_rep: Numerical Representation type to give state in (10 for decimal, 8 for octal, 16 for hexadecimal and 2 for binary)
         :type num_rep: int
-        :return: Mapping of variable/register name to its current signed value 
+        :return: Mapping of variable/register name to its current signed value
         :rtype: dict[str, int]
         :raises ValueError: If section is not one of the recognized names
         """
         if numerical_representation not in [2, 8, 10, 16]:
-                    print(f"{numerical_representation} not supported as a numerical representation type. Defaulting to 16")
-                    numerical_representation = 16
-        return self.cpu.get_state(section, numerical_representation) 
+            print(
+                f"{numerical_representation} not supported as a numerical representation type. Defaulting to 16"
+            )
+            numerical_representation = 16
+        return self.cpu.get_state(section, numerical_representation)
 
-    def to_json(self, path: str, numerical_representation: int =10) -> str | None:
+    def to_json(self, path: str, numerical_representation: int = 10) -> str | None:
         """
         Exports the final state of the interpreter to a JSON file at the
         exact destination path provided by the caller.\n
@@ -141,16 +150,21 @@ class Interpreter_x86:
 
         parent_dir = os.path.dirname(path)
         if parent_dir and not os.path.isdir(parent_dir):
-            print(f"Invalid path provided! Parent directory does not exist: {parent_dir}")
+            print(
+                f"Invalid path provided! Parent directory does not exist: {parent_dir}"
+            )
             return None
 
         if numerical_representation not in [2, 8, 10, 16]:
-            print(f"{numerical_representation} not supported as a numerical representation type. Defaulting to 16")
+            print(
+                f"{numerical_representation} not supported as a numerical representation type. Defaulting to 16"
+            )
             numerical_representation = 16
 
-        Interpreter_x86._export_state_to(path, self.get_state("all", numerical_representation))
+        Interpreter_x86._export_state_to(
+            path, self.get_state("all", numerical_representation)
+        )
         return path
-
 
     # ------------------
     # Static Methods
@@ -166,10 +180,10 @@ class Interpreter_x86:
         """
         file_path: str = ""
         if len(sys.argv) != 2 or not Interpreter_x86._valid_file(sys.argv[1]):
-            while (file_path == ""):
-                    file_path = input("Enter the full path to the assembly file: ")
-                    if not Interpreter_x86._valid_file(file_path):
-                        file_path = ""
+            while file_path == "":
+                file_path = input("Enter the full path to the assembly file: ")
+                if not Interpreter_x86._valid_file(file_path):
+                    file_path = ""
         return file_path if file_path else sys.argv[1]
 
     @staticmethod
@@ -186,7 +200,7 @@ class Interpreter_x86:
             print("File not found. Please try again.\n")
             return False
         return True
-    
+
     @staticmethod
     def _get_args() -> list[str] | None:
         """
@@ -195,7 +209,9 @@ class Interpreter_x86:
         :return: List of command line arguments or None
         :rtype: list[str] | None
         """
-        user_input: str = input("Enter command-line arguments separated by spaces (or press Enter for none): ")
+        user_input: str = input(
+            "Enter command-line arguments separated by spaces (or press Enter for none): "
+        )
         args: list[str] = user_input.split() if user_input.strip() else []
         return args if args else None
 

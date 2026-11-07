@@ -1,8 +1,8 @@
 import re
 
-from . import patter_matching_helpers as PM
-from ..helpers.my_types import LabelMap, ConstantMap, DataSectionInfo, BssSectionInfo
 from ..bridges.register_manager import Registers_Interface
+from ..helpers.my_types import BssSectionInfo, ConstantMap, DataSectionInfo, LabelMap
+from . import patter_matching_helpers as PM
 
 
 class Operand:
@@ -28,13 +28,14 @@ class Operand:
     :param is_signed: Flag indicating signed register or arithmetic operand operations
     :type is_signed: int
     """
+
     __slots__ = [
-        "expression",
-        "type",
         "address",
-        "size",
+        "expression",
         "is_high",
         "is_signed",
+        "size",
+        "type",
         "valid",
     ]
 
@@ -50,7 +51,15 @@ class Operand:
         self.is_high: int = 0  # Flag for high register access (e.g., AH, BH)
         self.is_signed: int = 0  # Flag for signed register/operand operations
 
-    def set(self, expression: str, op_type: int, address: int, size: int, is_high: int = 0, is_signed: int = 0) -> None:
+    def set(
+        self,
+        expression: str,
+        op_type: int,
+        address: int,
+        size: int,
+        is_high: int = 0,
+        is_signed: int = 0,
+    ) -> None:
         """
         Sets the parameters of the operand and enables use of this Operand info.
         """
@@ -81,13 +90,42 @@ class Operand:
         return self.valid
 
     def __str__(self):
-        # For debug purposes 
-        return "Operand: " + self.expression + "\nType: " + str(self.type) + "\nAddress: " + str(self.address) + "\nSize: " + str(self.size) + "\nHigh byte: " + str(self.is_high) + "\nSigned: " + str(self.is_signed) + "\nActive: " + str(self.valid)
+        # For debug purposes
+        return (
+            "Operand: "
+            + self.expression
+            + "\nType: "
+            + str(self.type)
+            + "\nAddress: "
+            + str(self.address)
+            + "\nSize: "
+            + str(self.size)
+            + "\nHigh byte: "
+            + str(self.is_high)
+            + "\nSigned: "
+            + str(self.is_signed)
+            + "\nActive: "
+            + str(self.valid)
+        )
 
 
 GP_REGISTER_ORDER = [
-    "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp",
-    "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+    "rax",
+    "rbx",
+    "rcx",
+    "rdx",
+    "rsi",
+    "rdi",
+    "rbp",
+    "rsp",
+    "r8",
+    "r9",
+    "r10",
+    "r11",
+    "r12",
+    "r13",
+    "r14",
+    "r15",
 ]
 
 FPU_REGISTER_ORDER = [f"xmm{i}" for i in range(16)] + [f"ymm{i}" for i in range(16)]
@@ -102,23 +140,23 @@ FPU_REGISTER_ORDER = [f"xmm{i}" for i in range(16)] + [f"ymm{i}" for i in range(
 # was a memory expression (the embedded '^...$' forced that operand alone to
 # match the entire joined string). re.sub removes every occurrence, wherever
 # it appears, which is what's actually needed here.
-_ANCHOR_CHARS = re.compile(r'[\^$]')
-_SIZE_PATTERN_STR = fr'(?:{"|".join(re.escape(_ANCHOR_CHARS.sub("", k)) for k in (*PM.SIZE_DIRECTIVES.keys(), *PM.MASKS_DIRECTIVES.keys()))})'
-_OP_PATTERN_STR = fr'(?:{_ANCHOR_CHARS.sub("", PM.OPERAND_PATTERN)})'
+_ANCHOR_CHARS = re.compile(r"[\^$]")
+_SIZE_PATTERN_STR = rf"(?:{'|'.join(re.escape(_ANCHOR_CHARS.sub('', k)) for k in (*PM.SIZE_DIRECTIVES.keys(), *PM.MASKS_DIRECTIVES.keys()))})"
+_OP_PATTERN_STR = rf"(?:{_ANCHOR_CHARS.sub('', PM.OPERAND_PATTERN)})"
 
 ONE_OPERAND_PATTERN = re.compile(
-    fr'^(?:{_SIZE_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}|{_OP_PATTERN_STR})$',
-    re.IGNORECASE
+    rf"^(?:{_SIZE_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}|{_OP_PATTERN_STR})$",
+    re.IGNORECASE,
 )
 
 TWO_OPERAND_PATTERN = re.compile(
-    fr'^(?:'
-    fr'{_SIZE_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}\s*,\s*{_SIZE_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}|'
-    fr'{_OP_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}|'
-    fr'{_SIZE_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}|'
-    fr'{_OP_PATTERN_STR}\s*,\s*{_SIZE_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}'
-    fr')$',
-    re.IGNORECASE
+    rf"^(?:"
+    rf"{_SIZE_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}\s*,\s*{_SIZE_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}|"
+    rf"{_OP_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}|"
+    rf"{_SIZE_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}|"
+    rf"{_OP_PATTERN_STR}\s*,\s*{_SIZE_PATTERN_STR}\s*,\s*{_OP_PATTERN_STR}"
+    rf")$",
+    re.IGNORECASE,
 )
 
 
@@ -153,20 +191,30 @@ class Instruction_Parser:
     """
 
     __slots__ = (
+        "bss",
+        "constants",
+        "data",
+        "expected_op_count",
+        "labels",
+        "line",
         "op1",
         "op2",
-        "line",
-        "labels",
-        "constants",
-        "rodata",
-        "data",
-        "bss",
-        "expected_op_count",
-        "rip",
         "registers",
+        "rip",
+        "rodata",
     )
 
-    def __init__(self, op1: Operand, op2: Operand, labels: LabelMap, constants: ConstantMap, rodata: DataSectionInfo, data: DataSectionInfo, bss: BssSectionInfo, registers: Registers_Interface):
+    def __init__(
+        self,
+        op1: Operand,
+        op2: Operand,
+        labels: LabelMap,
+        constants: ConstantMap,
+        rodata: DataSectionInfo,
+        data: DataSectionInfo,
+        bss: BssSectionInfo,
+        registers: Registers_Interface,
+    ):
         self.op1: Operand = op1
         self.op2: Operand = op2
         self.labels = labels
@@ -192,9 +240,11 @@ class Instruction_Parser:
         :rtype: None
         :raises SyntaxError: If the instruction tokens violate structural rules or expected operand counts at `self.rip`.
         """
-        if not self.validate_instruction_line(self.line): # type: ignore
-            raise SyntaxError(f"Invalid instruction declaration syntax at line {self.rip}.")
-        self.parse_operands(self.line[1:]) # type: ignore
+        if not self.validate_instruction_line(self.line):  # type: ignore
+            raise SyntaxError(
+                f"Invalid instruction declaration syntax at line {self.rip}."
+            )
+        self.parse_operands(self.line[1:])  # type: ignore
 
     def parse_operands(self, line: list[str]) -> None:
         """
@@ -234,9 +284,11 @@ class Instruction_Parser:
         ret_list: list[str] = ["", "", "", ""]
         max_ret_value: int = 3
         last_idx: int = len(line) - 1
-        size_directives = PM.SIZE_DIRECTIVES        # data declarations: db/dw/dd/dq
-        mask_directives = PM.MASKS_DIRECTIVES        # instruction operand prefixes: byte/word/dword/qword
-        operand_re = re.compile(fr'^({PM.OPERAND_PATTERN})$')
+        size_directives = PM.SIZE_DIRECTIVES  # data declarations: db/dw/dd/dq
+        mask_directives = (
+            PM.MASKS_DIRECTIVES
+        )  # instruction operand prefixes: byte/word/dword/qword
+        operand_re = re.compile(rf"^({PM.OPERAND_PATTERN})$")
 
         i = 0
         while i < len(line):
@@ -253,7 +305,9 @@ class Instruction_Parser:
                 if i == last_idx or not operand_re.match(line[i + 1]):
                     raise SyntaxError(f"INVALID SYNTAX FORMAT AT LINE {self.rip}!")
                 if max_ret_value < 1:
-                    raise ValueError("Program parsing ran into a problem! Aborting execution ...")
+                    raise ValueError(
+                        "Program parsing ran into a problem! Aborting execution ..."
+                    )
                 ret_list[max_ret_value] = line[i + 1]
                 ret_list[max_ret_value - 1] = str(size)
                 max_ret_value -= 2
@@ -261,17 +315,23 @@ class Instruction_Parser:
 
             elif operand_re.match(token):
                 if max_ret_value < 1:
-                    raise ValueError("Program parsing ran into a problem! Aborting execution ...")
+                    raise ValueError(
+                        "Program parsing ran into a problem! Aborting execution ..."
+                    )
                 ret_list[max_ret_value] = token
                 if self.is_register(token):
-                    ret_list[max_ret_value - 1] = str(self.get_register_size(token, self.rip))
+                    ret_list[max_ret_value - 1] = str(
+                        self.get_register_size(token, self.rip)
+                    )
                 else:
                     ret_list[max_ret_value - 1] = ""
                 max_ret_value -= 2
                 i += 1
 
             else:
-                raise ValueError("Program parsing ran into a problem! Aborting execution ...")
+                raise ValueError(
+                    "Program parsing ran into a problem! Aborting execution ..."
+                )
         return ret_list
 
     def solve_operands(self, operands_info: list[str]) -> None:
@@ -306,13 +366,15 @@ class Instruction_Parser:
             elif self.is_number(expr):
                 val = self._parse_numeric_literal(expr)
                 is_signed = 1 if val < 0 else 0
-                raw_bits = val & 0xFFFFFFFFFFFFFFFF # Mask for C FFI bindings
+                raw_bits = val & 0xFFFFFFFFFFFFFFFF  # Mask for C FFI bindings
                 operand_obj.set(expr, 2, raw_bits, size, is_signed=is_signed)
             elif self.is_label(expr):
                 resolved = self._solve_label_or_constant(expr)
                 operand_obj.set(expr, 2, resolved, size)
             else:
-                raise ValueError("Program parsing ran into a problem! Aborting execution ...")
+                raise ValueError(
+                    "Program parsing ran into a problem! Aborting execution ..."
+                )
 
         self._infer_unsized_memory_operand()
 
@@ -339,11 +401,13 @@ class Instruction_Parser:
             elif op2.type in (0, 2) and op2.size == 0 and op1.type == 1:
                 op2.size = op1.size
 
-    def _solve_register_operand(self, operand_obj: Operand, expr: str, size: int) -> None:
+    def _solve_register_operand(
+        self, operand_obj: Operand, expr: str, size: int
+    ) -> None:
         """
         Sets an Operand instance for a register operand.
         """
-        is_high = 1 if re.fullmatch(r'[abcd]h', expr) else 0
+        is_high = 1 if re.fullmatch(r"[abcd]h", expr) else 0
 
         if self.is_fpu_register(expr):
             address = FPU_REGISTER_ORDER.index(expr)
@@ -353,7 +417,9 @@ class Instruction_Parser:
 
         operand_obj.set(expr, 1, address, size, is_high=is_high)
 
-    def _solve_memory_operand_into(self, operand_obj: Operand, expr: str, size: int) -> None:
+    def _solve_memory_operand_into(
+        self, operand_obj: Operand, expr: str, size: int
+    ) -> None:
         """
         Sets an Operand instance for a memory operand.
         """
@@ -364,26 +430,36 @@ class Instruction_Parser:
         """
         Maps any general-purpose register alias to its canonical 64-bit family name.
         """
-        match = re.fullmatch(r'(r(?:[89]|1[0-5]))[bdlw]?', register)
+        match = re.fullmatch(r"(r(?:[89]|1[0-5]))[bdlw]?", register)
         if match:
             return match.group(1)
 
         alias_map = {"a": "rax", "b": "rbx", "c": "rcx", "d": "rdx"}
-        if re.fullmatch(r'[abcd][hl]', register):
+        if re.fullmatch(r"[abcd][hl]", register):
             return alias_map[register[0]]
-        if re.fullmatch(r'[er]?[abcd]x', register):
+        if re.fullmatch(r"[er]?[abcd]x", register):
             return alias_map[register[-2]]
 
         special_map = {
-            "sp": "rsp", "esp": "rsp", "rsp": "rsp",
-            "bp": "rbp", "ebp": "rbp", "rbp": "rbp",
-            "si": "rsi", "esi": "rsi", "rsi": "rsi",
-            "di": "rdi", "edi": "rdi", "rdi": "rdi",
+            "sp": "rsp",
+            "esp": "rsp",
+            "rsp": "rsp",
+            "bp": "rbp",
+            "ebp": "rbp",
+            "rbp": "rbp",
+            "si": "rsi",
+            "esi": "rsi",
+            "rsi": "rsi",
+            "di": "rdi",
+            "edi": "rdi",
+            "rdi": "rdi",
         }
         if register in special_map:
             return special_map[register]
 
-        raise ValueError(f"Program parsing ran into a problem! Unrecognized register alias: '{register}'")
+        raise ValueError(
+            f"Program parsing ran into a problem! Unrecognized register alias: '{register}'"
+        )
 
     # ------------------
     # Operand Decoders
@@ -408,8 +484,10 @@ class Instruction_Parser:
             return int(self.constants[name]["value"])
         for section in (self.data, self.rodata, self.bss):
             if name in section:
-                return section[name]["addresses"][0] # type: ignore
-        raise SyntaxError(f"INVALID SYNTAX FORMAT AT LINE {self.rip}! Unresolved label or constant: '{name}'")
+                return section[name]["addresses"][0]  # type: ignore
+        raise SyntaxError(
+            f"INVALID SYNTAX FORMAT AT LINE {self.rip}! Unresolved label or constant: '{name}'"
+        )
 
     def _solve_memory_operand(self, operand: str) -> int:
         """
@@ -418,30 +496,36 @@ class Instruction_Parser:
         inner = operand.strip()[1:-1]  # strip enclosing '[' ']'
 
         # Split into signed components: e.g. "ebx+ecx*4-8" -> ["ebx", "+ecx*4", "-8"]
-        tokens = re.findall(r'[+\-][^+\-]+|^[^+\-]+', inner.replace(" ", ""))
+        tokens = re.findall(r"[+\-][^+\-]+|^[^+\-]+", inner.replace(" ", ""))
 
         address = 0
         for token in tokens:
-            sign = -1 if token.startswith('-') else 1
-            term = token.lstrip('+-')
+            sign = -1 if token.startswith("-") else 1
+            term = token.lstrip("+-")
 
-            if '*' in term:
-                reg, scale = term.split('*')
+            if "*" in term:
+                reg, scale = term.split("*")
                 try:
                     value = self.registers.read_reg(reg) * int(scale)
                 except Exception:
-                    raise SyntaxError(f"INVALID REGISTER NAME {reg} AT LINE {self.rip}!")
+                    raise SyntaxError(
+                        f"INVALID REGISTER NAME {reg} AT LINE {self.rip}!"
+                    )
             elif self.is_register(term):
                 try:
                     value = self.registers.read_reg(term)
                 except Exception:
-                    raise SyntaxError(f"INVALID REGISTER NAME {term} AT LINE {self.rip}!")
+                    raise SyntaxError(
+                        f"INVALID REGISTER NAME {term} AT LINE {self.rip}!"
+                    )
             elif self.is_number(term):
                 value = self._parse_numeric_literal(term)
             elif self.is_label(term):
                 value = self._solve_label_or_constant(term)
             else:
-                raise SyntaxError(f"INVALID SYNTAX FORMAT AT LINE {self.rip}! Bad memory component: '{term}'")
+                raise SyntaxError(
+                    f"INVALID SYNTAX FORMAT AT LINE {self.rip}! Bad memory component: '{term}'"
+                )
             address += sign * value
         return address
 
@@ -449,24 +533,26 @@ class Instruction_Parser:
         """
         Converts a numeric literal token into its integer value.
         """
-        if re.fullmatch(r'[-+]?0[xX][\da-fA-F]+', literal):
+        if re.fullmatch(r"[-+]?0[xX][\da-fA-F]+", literal):
             return int(literal, 16)
-        if re.fullmatch(r'[-+]?\d[\da-fA-F]*h', literal, re.IGNORECASE):
-            return int(literal.rstrip('hH'), 16)
-        if re.fullmatch(r'[-+]?0[bB][01]+', literal):
+        if re.fullmatch(r"[-+]?\d[\da-fA-F]*h", literal, re.IGNORECASE):
+            return int(literal.rstrip("hH"), 16)
+        if re.fullmatch(r"[-+]?0[bB][01]+", literal):
             return int(literal, 2)
-        if re.fullmatch(r'[-+]?[01]+b', literal, re.IGNORECASE):
-            return int(literal.rstrip('bB'), 2)
-        if re.fullmatch(r'[-+]?0[dD]\d+', literal):
-            sign = -1 if literal.startswith('-') else 1
-            return sign * int(literal.lstrip('+-')[2:], 10)
-        if re.fullmatch(r'[-+]?\d+d', literal, re.IGNORECASE):
-            return int(literal.rstrip('dD'), 10)
-        if re.fullmatch(r'[-+]?[0-7]+[oq]', literal, re.IGNORECASE):
-            return int(literal.rstrip('oqOQ'), 8)
-        if re.fullmatch(r'[-+]?\d+', literal):
+        if re.fullmatch(r"[-+]?[01]+b", literal, re.IGNORECASE):
+            return int(literal.rstrip("bB"), 2)
+        if re.fullmatch(r"[-+]?0[dD]\d+", literal):
+            sign = -1 if literal.startswith("-") else 1
+            return sign * int(literal.lstrip("+-")[2:], 10)
+        if re.fullmatch(r"[-+]?\d+d", literal, re.IGNORECASE):
+            return int(literal.rstrip("dD"), 10)
+        if re.fullmatch(r"[-+]?[0-7]+[oq]", literal, re.IGNORECASE):
+            return int(literal.rstrip("oqOQ"), 8)
+        if re.fullmatch(r"[-+]?\d+", literal):
             return int(literal)
-        raise ValueError(f"Program parsing ran into a problem! Unrecognized numeric literal: '{literal}'")
+        raise ValueError(
+            f"Program parsing ran into a problem! Unrecognized numeric literal: '{literal}'"
+        )
 
     # ----------------------------
     # General Validation Methods
@@ -507,7 +593,7 @@ class Instruction_Parser:
         :raises SyntaxError: If no supported operand patterns are matched
         """
         joined_ops = ",".join(instruction)
-    
+
         if TWO_OPERAND_PATTERN.match(joined_ops):
             return 2
         if ONE_OPERAND_PATTERN.match(joined_ops):
@@ -524,16 +610,16 @@ class Instruction_Parser:
         Determines register size in bytes based on name.
         """
         if Instruction_Parser.is_fpu_register(register):
-            return 32 if register.startswith('ymm') else 16
+            return 32 if register.startswith("ymm") else 16
 
         if not Instruction_Parser.is_general_purpose_register(register):
-            location = f" AT LINE {rip}" if rip is not None else "" # type: ignore
+            location = f" AT LINE {rip}" if rip is not None else ""  # type: ignore
             raise SyntaxError(f"INVALID SYNTAX FORMAT{location}!")
 
-        if re.fullmatch(r'[abcd][hl]', register):
+        if re.fullmatch(r"[abcd][hl]", register):
             return 1
 
-        match = re.fullmatch(r'r(?:[89]|1[0-5])([bdlw]?)', register)
+        match = re.fullmatch(r"r(?:[89]|1[0-5])([bdlw]?)", register)
         if match:
             suffix = match.group(1)
             return {"": 8, "b": 1, "l": 1, "w": 2, "d": 4}[suffix]
@@ -541,9 +627,9 @@ class Instruction_Parser:
         if register in ("rip", "eip", "ip"):
             return {"rip": 8, "eip": 4, "ip": 2}[register]
 
-        if register.startswith('r'):
+        if register.startswith("r"):
             return 8
-        if register.startswith('e'):
+        if register.startswith("e"):
             return 4
         return 2
 
@@ -565,7 +651,9 @@ class Instruction_Parser:
 
     @staticmethod
     def is_register(operand: str) -> bool:
-        return Instruction_Parser.is_general_purpose_register(operand) or Instruction_Parser.is_fpu_register(operand)
+        return Instruction_Parser.is_general_purpose_register(
+            operand
+        ) or Instruction_Parser.is_fpu_register(operand)
 
     @staticmethod
     def is_general_purpose_register(operand: str) -> bool:

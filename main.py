@@ -1,10 +1,10 @@
 import os
 import sys
 
-from interpreter.exit_codes import ExitCode
-from interpreter._src.parsing.segment_mapper import Segment_Mapper
-from interpreter._src.parsing.control_unit import Control_Unit
 from interpreter._src.helpers.storage import Storage
+from interpreter._src.parsing.control_unit import Control_Unit
+from interpreter._src.parsing.segment_mapper import Segment_Mapper
+from interpreter.exit_codes import ExitCode
 
 HELP_TEXT = """\
 Usage: python main.py <path-to-assembly-file> [flags] [-- program-args...]
@@ -33,6 +33,7 @@ Examples:
   python main.py program.asm -q -o state.json
 """
 
+
 def main():
     """
     Main function to initialize and run the assembly interpreter.\n
@@ -43,7 +44,7 @@ def main():
     -r/--num-rep <base>, -o/--output <path>, -q/--quiet, -h/--help\n
     Debugging flags can be set to enable or disable debugging mode.\n
     Strick mode disables debugging and arguments prompting if missing.\n
-    
+
     Author: João Carrilho Louro
 
     :return: None
@@ -57,7 +58,7 @@ def main():
         return
 
     Storage.clean_cache()  # Clean cache before starting
-    
+
     file = get_file()
     # seen_flags lookup:
     # first index = debugging_flags, second index = strick_mode
@@ -71,7 +72,7 @@ def main():
     else:
         argvcount: int = len(argv)
 
-    loader: Segment_Mapper = Segment_Mapper(file, argvcount, argv) 
+    loader: Segment_Mapper = Segment_Mapper(file, argvcount, argv)
     # -d forces debugging ON directly. -s (without -d) forces it OFF
     # without prompting. If neither flag is present, fall back to the
     # interactive prompt.
@@ -81,7 +82,7 @@ def main():
         debugging = False
     else:
         debugging = is_debugging()
-    cpu: Control_Unit = Control_Unit(loader, debugging) 
+    cpu: Control_Unit = Control_Unit(loader, debugging)
     exit_code = cpu.run()
     state = cpu.get_state("all", num_rep)
 
@@ -92,6 +93,7 @@ def main():
     if output_path is not None:
         export_state(output_path, state, exit_code)
 
+
 def get_file() -> str:
     """
     Get the file path from command line arguments or user input.
@@ -101,11 +103,12 @@ def get_file() -> str:
     """
     file_path: str = ""
     if len(sys.argv) != 2 or not valid_file(sys.argv[1]):
-        while (file_path == ""):
-                file_path = input("Enter the full path to the assembly file: ")
-                if not valid_file(file_path):
-                    file_path = ""
+        while file_path == "":
+            file_path = input("Enter the full path to the assembly file: ")
+            if not valid_file(file_path):
+                file_path = ""
     return file_path if file_path else sys.argv[1]
+
 
 def valid_file(file_path: str) -> bool:
     """
@@ -121,6 +124,7 @@ def valid_file(file_path: str) -> bool:
         return False
     return True
 
+
 def get_args() -> list[str] | None:
     """
     Get command line arguments from user input.
@@ -129,11 +133,16 @@ def get_args() -> list[str] | None:
     :rtype: list[str] | None
     """
 
-    user_input: str = input("Enter command-line arguments separated by spaces (or press Enter for none): ")
+    user_input: str = input(
+        "Enter command-line arguments separated by spaces (or press Enter for none): "
+    )
     args: list[str] = user_input.split() if user_input.strip() else []
     return args if args else None
 
-def parse_args(args_list: list[str]) -> tuple[list[bool], list[str] | None, int, str | None, bool]:
+
+def parse_args(
+    args_list: list[str],
+) -> tuple[list[bool], list[str] | None, int, str | None, bool]:
     """
     Parse command line arguments from a list.
 
@@ -170,9 +179,13 @@ def parse_args(args_list: list[str]) -> tuple[list[bool], list[str] | None, int,
                     if candidate in (2, 8, 10, 16):
                         num_rep = candidate
                     else:
-                        print(f"{candidate} is not a supported numeric base (2, 8, 10, 16). Defaulting to 10.")
+                        print(
+                            f"{candidate} is not a supported numeric base (2, 8, 10, 16). Defaulting to 10."
+                        )
                 except ValueError:
-                    print(f"'{args_list[i]}' is not a valid integer for {arg}. Defaulting to 10.")
+                    print(
+                        f"'{args_list[i]}' is not a valid integer for {arg}. Defaulting to 10."
+                    )
         elif arg == "-o" or arg == "--output":
             i += 1
             if i >= len(args_list):
@@ -188,9 +201,12 @@ def parse_args(args_list: list[str]) -> tuple[list[bool], list[str] | None, int,
                 parsed_args.append(arg)
         i += 1
 
-    if not parsed_args and not seen_args[1]:  # If no arguments are provided and strick mode is not enabled, prompt for arguments
+    if (
+        not parsed_args and not seen_args[1]
+    ):  # If no arguments are provided and strick mode is not enabled, prompt for arguments
         parsed_args = get_args()
     return seen_args, parsed_args, num_rep, output_path, quiet
+
 
 def is_debugging():
     """
@@ -199,9 +215,9 @@ def is_debugging():
     :return: True if debug is wanted, False otherwise
     :rtype: bool
     """
-    debugging:int = -1
+    debugging: int = -1
     while debugging == -1:
-        answer:str = input("Run debugging mode? (yes/no)")
+        answer: str = input("Run debugging mode? (yes/no)")
         match answer:
             case "yes":
                 debugging = 1
@@ -210,6 +226,7 @@ def is_debugging():
             case _:
                 continue
     return True if debugging == 1 else False
+
 
 def export_state(path: str, state: dict[str, int | str], exit_code: ExitCode) -> None:
     """
@@ -225,6 +242,7 @@ def export_state(path: str, state: dict[str, int | str], exit_code: ExitCode) ->
     :param exit_code: The ExitCode returned by cpu.run()
     """
     import json
+
     from interpreter.exit_codes import ExitCode
 
     if exit_code == ExitCode.IRRECOVERABLE_ERROR:

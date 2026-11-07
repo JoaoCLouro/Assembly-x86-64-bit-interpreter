@@ -6,15 +6,16 @@ real libscl.so, and use unittest.mock.Mock for registers/memory/lib so no
 real ctypes calls, real files, or real host I/O happen during the test run.
 """
 
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import Mock, call
 
-from  interpreter._src.bridges.syscall import Syscall
-
+from interpreter._src.bridges.syscall import Syscall
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def mock_registers():
@@ -78,32 +79,32 @@ def syscall(mock_registers, mock_memory):
 
 def set_call(regs, rax, rdi=0, rsi=0, rdx=0):
     """Helper to load rax/rdi/rsi/rdx like control_unit would before dispatch."""
-    regs.write_reg('rax', rax)
-    regs.write_reg('rdi', rdi)
-    regs.write_reg('rsi', rsi)
-    regs.write_reg('rdx', rdx)
+    regs.write_reg("rax", rax)
+    regs.write_reg("rdi", rdi)
+    regs.write_reg("rsi", rsi)
+    regs.write_reg("rdx", rdx)
 
 
 # ---------------------------------------------------------------------------
 # syscall() dispatch
 # ---------------------------------------------------------------------------
 
-class TestDispatch:
 
+class TestDispatch:
     def test_dispatches_write_and_writes_result_to_rax(self, syscall, mock_registers):
         syscall.lib.sys_write.return_value = 5
         set_call(mock_registers, rax=Syscall.SYS_WRITE, rdi=1, rsi=0x1000, rdx=5)
 
         syscall.syscall()
 
-        assert mock_registers.read_reg('rax') == 5
+        assert mock_registers.read_reg("rax") == 5
 
     def test_unknown_syscall_number_is_a_noop(self, syscall, mock_registers):
         set_call(mock_registers, rax=9999)
 
         syscall.syscall()  # must not raise
 
-        assert mock_registers.read_reg('rax') == 9999  # untouched, no handler ran
+        assert mock_registers.read_reg("rax") == 9999  # untouched, no handler ran
         syscall.lib.sys_write.assert_not_called()
         syscall.lib.sys_read.assert_not_called()
 
@@ -113,7 +114,7 @@ class TestDispatch:
         result = syscall.syscall()
 
         assert result == 1
-        assert mock_registers.read_reg('rax') == Syscall.SYS_EXIT  # untouched
+        assert mock_registers.read_reg("rax") == Syscall.SYS_EXIT  # untouched
 
     def test_reads_registers_before_dispatch(self, syscall, mock_registers):
         syscall.lib.sys_write.return_value = 0
@@ -121,18 +122,18 @@ class TestDispatch:
 
         syscall.syscall()
 
-        mock_registers.read_reg.assert_any_call('rax')
-        mock_registers.read_reg.assert_any_call('rdi')
-        mock_registers.read_reg.assert_any_call('rsi')
-        mock_registers.read_reg.assert_any_call('rdx')
+        mock_registers.read_reg.assert_any_call("rax")
+        mock_registers.read_reg.assert_any_call("rdi")
+        mock_registers.read_reg.assert_any_call("rsi")
+        mock_registers.read_reg.assert_any_call("rdx")
 
 
 # ---------------------------------------------------------------------------
 # exit
 # ---------------------------------------------------------------------------
 
-class TestExit:
 
+class TestExit:
     def test_exit_returns_one(self, syscall):
         result = syscall.exit()
         assert result == 1
@@ -142,13 +143,13 @@ class TestExit:
 # read
 # ---------------------------------------------------------------------------
 
-class TestRead:
 
+class TestRead:
     def test_read_writes_bytes_into_simulated_memory(self, syscall, mock_memory):
         data = b"hello world"
         syscall.lib.sys_read.side_effect = lambda fd, buf, size: (
             [buf.__setitem__(i, b) for i, b in enumerate(data)],
-            len(data)
+            len(data),
         )[-1]
 
         result = syscall.read(fd=0, addr=0x1000, size=len(data))
@@ -171,7 +172,9 @@ class TestRead:
         assert result == 0
         mock_memory.write_bytes.assert_not_called()
 
-    def test_read_short_count_pads_remaining_bytes_with_zero(self, syscall, mock_memory):
+    def test_read_short_count_pads_remaining_bytes_with_zero(
+        self, syscall, mock_memory
+    ):
         # Simulate a short read: asked for 10 bytes, only got 4
         partial = b"abcd"
 
@@ -193,9 +196,11 @@ class TestRead:
 # write
 # ---------------------------------------------------------------------------
 
-class TestWrite:
 
-    def test_write_reads_bytes_from_simulated_memory_and_passes_to_lib(self, syscall, mock_memory):
+class TestWrite:
+    def test_write_reads_bytes_from_simulated_memory_and_passes_to_lib(
+        self, syscall, mock_memory
+    ):
         mock_memory.write_bytes(0x2000, b"payload!", 8)
         syscall.lib.sys_write.return_value = 8
 
@@ -221,8 +226,8 @@ class TestWrite:
 # open
 # ---------------------------------------------------------------------------
 
-class TestOpen:
 
+class TestOpen:
     def test_open_reads_nul_terminated_path_from_memory(self, syscall, mock_memory):
         path = b"/tmp/test.txt"
         for i, b in enumerate(path + b"\x00"):
@@ -270,8 +275,8 @@ class TestOpen:
 # close
 # ---------------------------------------------------------------------------
 
-class TestClose:
 
+class TestClose:
     def test_close_delegates_to_lib_and_returns_result(self, syscall):
         syscall.lib.sys_close.return_value = 0
 
@@ -289,14 +294,15 @@ class TestClose:
         assert result == -1
 
 
-
 # ---------------------------------------------------------------------------
 # getrandom
 # ---------------------------------------------------------------------------
 
-class TestGetrandom:
 
-    def test_getrandom_writes_random_bytes_into_simulated_memory(self, syscall, mock_memory):
+class TestGetrandom:
+    def test_getrandom_writes_random_bytes_into_simulated_memory(
+        self, syscall, mock_memory
+    ):
         random_bytes = b"\xde\xad\xbe\xef"
 
         def fake_getrandom(buf, size):
@@ -318,7 +324,9 @@ class TestGetrandom:
 
         assert result == -1
 
-    def test_getrandom_short_result_pads_remaining_bytes_with_zero(self, syscall, mock_memory):
+    def test_getrandom_short_result_pads_remaining_bytes_with_zero(
+        self, syscall, mock_memory
+    ):
         partial = b"\x01\x02"
 
         def fake_getrandom(buf, size):
@@ -357,8 +365,8 @@ class TestGetrandom:
 # _read_c_string
 # ---------------------------------------------------------------------------
 
-class TestReadCString:
 
+class TestReadCString:
     def test_reads_up_to_nul_terminator(self, syscall, mock_memory):
         path = b"/usr/bin/ls"
         for i, b in enumerate(path + b"\x00"):

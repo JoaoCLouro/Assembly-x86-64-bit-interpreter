@@ -17,6 +17,7 @@ for Registers_Interface are defined below rather than in a separate
 conftest.py, since Registers_Interface requires a compiled libreg.so at
 construction time and can't be instantiated directly in tests.
 """
+
 import pytest
 
 from interpreter._src.parsing.instruction_parser import Instruction_Parser, Operand
@@ -99,34 +100,71 @@ def make_parser(
         rodata=rodata or {},
         data=data or {},
         bss=bss or {},
-        registers=registers, # type: ignore
+        registers=registers,  # type: ignore
     )
 
 
-
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # TYPE VALIDATION
 # Tests for Instruction_Parser's static type-validation methods:
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
 
 class TestIsGeneralPurposeRegister:
-    @pytest.mark.parametrize("reg", [
-        "rax", "eax", "ax", "al", "ah",
-        "rbx", "ebx", "bx", "bl", "bh",
-        "rsp", "esp", "sp",
-        "rbp", "ebp", "bp",
-        "rsi", "esi", "si",
-        "rdi", "edi", "di",
-        "rip", "eip", "ip",
-        "r8", "r9", "r10", "r15",
-        "r8b", "r8w", "r8d",
-    ])
+    @pytest.mark.parametrize(
+        "reg",
+        [
+            "rax",
+            "eax",
+            "ax",
+            "al",
+            "ah",
+            "rbx",
+            "ebx",
+            "bx",
+            "bl",
+            "bh",
+            "rsp",
+            "esp",
+            "sp",
+            "rbp",
+            "ebp",
+            "bp",
+            "rsi",
+            "esi",
+            "si",
+            "rdi",
+            "edi",
+            "di",
+            "rip",
+            "eip",
+            "ip",
+            "r8",
+            "r9",
+            "r10",
+            "r15",
+            "r8b",
+            "r8w",
+            "r8d",
+        ],
+    )
     def test_valid_general_purpose_registers(self, reg):
         assert IP.is_general_purpose_register(reg) is True
 
-    @pytest.mark.parametrize("reg", [
-        "xmm0", "ymm5", "notareg", "rax1", "", "eax ", " eax", "r16", "r7",
-    ])
+    @pytest.mark.parametrize(
+        "reg",
+        [
+            "xmm0",
+            "ymm5",
+            "notareg",
+            "rax1",
+            "",
+            "eax ",
+            " eax",
+            "r16",
+            "r7",
+        ],
+    )
     def test_rejects_non_general_purpose(self, reg):
         assert IP.is_general_purpose_register(reg) is False
 
@@ -152,31 +190,57 @@ class TestIsRegister:
 
 
 class TestIsMemory:
-    @pytest.mark.parametrize("expr", [
-        "[rax]",
-        "[rax+8]",
-        "[rax-8]",
-        "[8]",
-        "[label]",
-        "[rax+rbx*4]",
-        "[rax+rbx*4+8]",
-        "[0x10]",
-    ])
+    @pytest.mark.parametrize(
+        "expr",
+        [
+            "[rax]",
+            "[rax+8]",
+            "[rax-8]",
+            "[8]",
+            "[label]",
+            "[rax+rbx*4]",
+            "[rax+rbx*4+8]",
+            "[0x10]",
+        ],
+    )
     def test_valid_memory_expressions(self, expr):
         assert IP.is_memory(expr) is True
 
-    @pytest.mark.parametrize("expr", [
-        "rax", "5", "[rax", "rax]", "[]", "",
-    ])
+    @pytest.mark.parametrize(
+        "expr",
+        [
+            "rax",
+            "5",
+            "[rax",
+            "rax]",
+            "[]",
+            "",
+        ],
+    )
     def test_rejects_non_memory(self, expr):
         assert IP.is_memory(expr) is False
 
 
 class TestIsNumber:
-    @pytest.mark.parametrize("literal", [
-        "5", "-5", "+5", "0x1F", "1Fh", "0b101", "101b", "0d5", "5d", "7o", "7q",
-        '"a"', "'a'", '"hello"',
-    ])
+    @pytest.mark.parametrize(
+        "literal",
+        [
+            "5",
+            "-5",
+            "+5",
+            "0x1F",
+            "1Fh",
+            "0b101",
+            "101b",
+            "0d5",
+            "5d",
+            "7o",
+            "7q",
+            '"a"',
+            "'a'",
+            '"hello"',
+        ],
+    )
     def test_valid_numeric_and_char_literals(self, literal):
         assert IP.is_number(literal) is True
 
@@ -194,35 +258,43 @@ class TestIsLabel:
     def test_rejects_non_labels(self, expr):
         assert IP.is_label(expr) is False
 
-#------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
 # MATCH INSTRUCTION FORMAT
 # Tests for Instruction_Parser.match_instruction_format and validate_instruction_line.
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
 
 class TestMatchInstructionFormatOneOperand:
-    @pytest.mark.parametrize("tokens", [
-        ["rax"],
-        ["db", "rax"],
-        ["[rax]"],
-        ["db", "[rax]"],
-        ["my_label"],
-        ["5"],
-    ])
+    @pytest.mark.parametrize(
+        "tokens",
+        [
+            ["rax"],
+            ["db", "rax"],
+            ["[rax]"],
+            ["db", "[rax]"],
+            ["my_label"],
+            ["5"],
+        ],
+    )
     def test_valid_one_operand_shapes_return_1(self, parser, tokens):
         assert parser.match_instruction_format(tokens) == 1
 
 
 class TestMatchInstructionFormatTwoOperand:
-    @pytest.mark.parametrize("tokens", [
-        ["rax", "rbx"],
-        ["db", "rax", "rbx"],
-        ["rax", "db", "rbx"],
-        ["db", "rax", "db", "rbx"],
-        ["[rax]", "rbx"],
-        ["rax", "[rbx]"],
-        ["my_label", "rax"],
-        ["rax", "5"],
-    ])
+    @pytest.mark.parametrize(
+        "tokens",
+        [
+            ["rax", "rbx"],
+            ["db", "rax", "rbx"],
+            ["rax", "db", "rbx"],
+            ["db", "rax", "db", "rbx"],
+            ["[rax]", "rbx"],
+            ["rax", "[rbx]"],
+            ["my_label", "rax"],
+            ["rax", "5"],
+        ],
+    )
     def test_valid_two_operand_shapes_return_2(self, parser, tokens):
         assert parser.match_instruction_format(tokens) == 2
 
@@ -233,13 +305,16 @@ class TestMatchInstructionFormatRejection:
     silently match a valid prefix (this was the anchor bug).
     """
 
-    @pytest.mark.parametrize("tokens", [
-        ["rax", "rbx", "extra_garbage"],
-        ["rax", "rbx", "rcx"],
-        ["db", "rax", "rbx", "extra"],
-        [",,,"],
-        ["!!!invalid!!!"],
-    ])
+    @pytest.mark.parametrize(
+        "tokens",
+        [
+            ["rax", "rbx", "extra_garbage"],
+            ["rax", "rbx", "rcx"],
+            ["db", "rax", "rbx", "extra"],
+            [",,,"],
+            ["!!!invalid!!!"],
+        ],
+    )
     def test_malformed_trailing_tokens_raise_syntax_error(self, parser, tokens):
         with pytest.raises(SyntaxError):
             parser.match_instruction_format(tokens)
@@ -291,10 +366,12 @@ class TestValidateInstructionLine:
         # validate_instruction_line must catch the SyntaxError internally
         assert parser.validate_instruction_line(["push", "rax", "!!!bad!!!"]) is False
 
-#------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
 # GET OPERAND INFO
 # Tests for Instruction_Parser.get_operand_info.
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
 
 class TestSingleOperandNoSize:
     def test_bare_register_operand(self, parser):
@@ -364,7 +441,9 @@ class TestGetOperandInfoErrors:
         with pytest.raises(SyntaxError):
             parser.get_operand_info(["rax", "db"])
 
-    def test_size_directive_followed_by_invalid_operand_raises_syntax_error(self, parser):
+    def test_size_directive_followed_by_invalid_operand_raises_syntax_error(
+        self, parser
+    ):
         with pytest.raises(SyntaxError):
             parser.get_operand_info(["db", "!!!invalid!!!"])
 
@@ -377,27 +456,51 @@ class TestGetOperandInfoErrors:
         with pytest.raises(ValueError):
             parser.get_operand_info(["rax", "rbx", "rcx"])
 
-#------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
 # REGISTER HELPERS
 # Tests for Instruction_Parser.get_register_size and _get_parent_register.
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
 
 class TestGetRegisterSizeGeneralPurpose:
-    @pytest.mark.parametrize("reg,expected", [
-        ("rax", 8), ("rbx", 8), ("rsp", 8), ("rbp", 8), ("rsi", 8), ("rdi", 8),
-        ("eax", 4), ("ebx", 4), ("esp", 4),
-        ("ax", 2), ("bx", 2), ("sp", 2),
-        ("al", 1), ("ah", 1), ("bl", 1), ("bh", 1),
-    ])
+    @pytest.mark.parametrize(
+        "reg,expected",
+        [
+            ("rax", 8),
+            ("rbx", 8),
+            ("rsp", 8),
+            ("rbp", 8),
+            ("rsi", 8),
+            ("rdi", 8),
+            ("eax", 4),
+            ("ebx", 4),
+            ("esp", 4),
+            ("ax", 2),
+            ("bx", 2),
+            ("sp", 2),
+            ("al", 1),
+            ("ah", 1),
+            ("bl", 1),
+            ("bh", 1),
+        ],
+    )
     def test_standard_register_sizes(self, reg, expected):
         assert IP.get_register_size(reg, rip=1) == expected
 
-    @pytest.mark.parametrize("reg,expected", [
-        ("r8", 8), ("r15", 8),
-        ("r8d", 4), ("r15d", 4),
-        ("r8w", 2), ("r15w", 2),
-        ("r8b", 1), ("r15b", 1),
-    ])
+    @pytest.mark.parametrize(
+        "reg,expected",
+        [
+            ("r8", 8),
+            ("r15", 8),
+            ("r8d", 4),
+            ("r15d", 4),
+            ("r8w", 2),
+            ("r15w", 2),
+            ("r8b", 1),
+            ("r15b", 1),
+        ],
+    )
     def test_extended_register_sizes(self, reg, expected):
         assert IP.get_register_size(reg, rip=1) == expected
 
@@ -427,28 +530,67 @@ class TestGetRegisterSizeErrors:
 
 
 class TestGetParentRegister:
-    @pytest.mark.parametrize("reg,expected_parent", [
-        ("rax", "rax"), ("eax", "rax"), ("ax", "rax"), ("al", "rax"), ("ah", "rax"),
-        ("rbx", "rbx"), ("ebx", "rbx"), ("bx", "rbx"), ("bl", "rbx"), ("bh", "rbx"),
-        ("rcx", "rcx"), ("ecx", "rcx"), ("cx", "rcx"), ("cl", "rcx"), ("ch", "rcx"),
-        ("rdx", "rdx"), ("edx", "rdx"), ("dx", "rdx"), ("dl", "rdx"), ("dh", "rdx"),
-    ])
+    @pytest.mark.parametrize(
+        "reg,expected_parent",
+        [
+            ("rax", "rax"),
+            ("eax", "rax"),
+            ("ax", "rax"),
+            ("al", "rax"),
+            ("ah", "rax"),
+            ("rbx", "rbx"),
+            ("ebx", "rbx"),
+            ("bx", "rbx"),
+            ("bl", "rbx"),
+            ("bh", "rbx"),
+            ("rcx", "rcx"),
+            ("ecx", "rcx"),
+            ("cx", "rcx"),
+            ("cl", "rcx"),
+            ("ch", "rcx"),
+            ("rdx", "rdx"),
+            ("edx", "rdx"),
+            ("dx", "rdx"),
+            ("dl", "rdx"),
+            ("dh", "rdx"),
+        ],
+    )
     def test_classic_four_family_resolution(self, parser, reg, expected_parent):
         assert parser._get_parent_register(reg) == expected_parent
 
-    @pytest.mark.parametrize("reg,expected_parent", [
-        ("rsp", "rsp"), ("esp", "rsp"), ("sp", "rsp"),
-        ("rbp", "rbp"), ("ebp", "rbp"), ("bp", "rbp"),
-        ("rsi", "rsi"), ("esi", "rsi"), ("si", "rsi"),
-        ("rdi", "rdi"), ("edi", "rdi"), ("di", "rdi"),
-    ])
+    @pytest.mark.parametrize(
+        "reg,expected_parent",
+        [
+            ("rsp", "rsp"),
+            ("esp", "rsp"),
+            ("sp", "rsp"),
+            ("rbp", "rbp"),
+            ("ebp", "rbp"),
+            ("bp", "rbp"),
+            ("rsi", "rsi"),
+            ("esi", "rsi"),
+            ("si", "rsi"),
+            ("rdi", "rdi"),
+            ("edi", "rdi"),
+            ("di", "rdi"),
+        ],
+    )
     def test_pointer_index_register_resolution(self, parser, reg, expected_parent):
         assert parser._get_parent_register(reg) == expected_parent
 
-    @pytest.mark.parametrize("reg,expected_parent", [
-        ("r8", "r8"), ("r8d", "r8"), ("r8w", "r8"), ("r8b", "r8"),
-        ("r15", "r15"), ("r15d", "r15"), ("r15w", "r15"), ("r15b", "r15"),
-    ])
+    @pytest.mark.parametrize(
+        "reg,expected_parent",
+        [
+            ("r8", "r8"),
+            ("r8d", "r8"),
+            ("r8w", "r8"),
+            ("r8b", "r8"),
+            ("r15", "r15"),
+            ("r15d", "r15"),
+            ("r15w", "r15"),
+            ("r15b", "r15"),
+        ],
+    )
     def test_extended_register_resolution(self, parser, reg, expected_parent):
         assert parser._get_parent_register(reg) == expected_parent
 
@@ -456,10 +598,12 @@ class TestGetParentRegister:
         with pytest.raises(ValueError):
             parser._get_parent_register("notareg")
 
-#------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
 # SOLVE OPERANDS
 # Tests for Instruction_Parser.solve_operands and its private helpers:
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
 
 class TestSolveOperandsEmptyInput:
     def test_empty_operands_info_clears_both_operands(self, parser):
@@ -505,11 +649,21 @@ class TestSolveOperandsSingleOperand:
 
 
 class TestSolveOperandsRegisterOrdinals:
-    @pytest.mark.parametrize("reg,expected_ordinal", [
-        ("rax", 0), ("rbx", 1), ("rcx", 2), ("rdx", 3),
-        ("rsi", 4), ("rdi", 5), ("rbp", 6), ("rsp", 7),
-        ("r8", 8), ("r15", 15),
-    ])
+    @pytest.mark.parametrize(
+        "reg,expected_ordinal",
+        [
+            ("rax", 0),
+            ("rbx", 1),
+            ("rcx", 2),
+            ("rdx", 3),
+            ("rsi", 4),
+            ("rdi", 5),
+            ("rbp", 6),
+            ("rsp", 7),
+            ("r8", 8),
+            ("r15", 15),
+        ],
+    )
     def test_gp_register_ordinal(self, parser, reg, expected_ordinal):
         parser.solve_operands(["", "", "8", reg])
         assert parser.op1.address == expected_ordinal
@@ -528,7 +682,10 @@ class TestSolveOperandsRegisterOrdinals:
         parser.solve_operands(["", "", "1", "al"])
         assert parser.op1.is_high == 0
 
-    @pytest.mark.parametrize("reg,expected_ordinal", [("xmm0", 0), ("xmm15", 15), ("ymm0", 16), ("ymm15", 31)])
+    @pytest.mark.parametrize(
+        "reg,expected_ordinal",
+        [("xmm0", 0), ("xmm15", 15), ("ymm0", 16), ("ymm15", 31)],
+    )
     def test_fpu_register_ordinal(self, parser, reg, expected_ordinal):
         parser.solve_operands(["", "", "16", reg])
         assert parser.op1.address == expected_ordinal
@@ -554,7 +711,6 @@ class TestSolveOperandsTwoOperands:
 
 
 class TestSolveOperandsLabelsAndConstants:
-
     def test_label_resolves_to_line_index(self, parser):
         parser.labels["loop_start"] = 42
 
@@ -634,19 +790,22 @@ class TestSolveMemoryOperand:
 
 
 class TestParseNumericLiteral:
-    @pytest.mark.parametrize("literal,expected", [
-        ("0x1F", 31),
-        ("1Fh", 31),
-        ("0b101", 5),
-        ("101b", 5),
-        ("0d5", 5),
-        ("5d", 5),
-        ("17o", 15),
-        ("17q", 15),
-        ("42", 42),
-        ("-5", -5),
-        ("+5", 5),
-    ])
+    @pytest.mark.parametrize(
+        "literal,expected",
+        [
+            ("0x1F", 31),
+            ("1Fh", 31),
+            ("0b101", 5),
+            ("101b", 5),
+            ("0d5", 5),
+            ("5d", 5),
+            ("17o", 15),
+            ("17q", 15),
+            ("42", 42),
+            ("-5", -5),
+            ("+5", 5),
+        ],
+    )
     def test_recognized_formats(self, parser, literal, expected):
         assert parser._parse_numeric_literal(literal) == expected
 
@@ -658,16 +817,20 @@ class TestParseNumericLiteral:
 class TestSolveOperandsUsesCustomParser:
     """Sanity check that the make_parser helper wires custom sections correctly."""
 
-    def test_custom_labels_and_registers_via_make_parser(self, op1, op2, fake_registers):
+    def test_custom_labels_and_registers_via_make_parser(
+        self, op1, op2, fake_registers
+    ):
         fake_registers.values["rbx"] = 77
         p = make_parser(op1, op2, fake_registers, labels={"start": 1})
         p.solve_operands(["", "", "", "start"])
         assert p.op1.address == 1
 
-#------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
 # OPERAND
 # Tests for the Operand class: initial state, set(), clear(), is_valid().
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
 
 class TestOperandInitialState:
     def test_starts_invalid_with_zeroed_fields(self):
@@ -736,15 +899,17 @@ class TestOperandSlotsEnforcement:
     def test_cannot_set_arbitrary_attribute(self):
         op = Operand()
         try:
-            op.new_attr = 5 # type: ignore
+            op.new_attr = 5  # type: ignore
             assert False, "expected AttributeError due to __slots__"
         except AttributeError:
             pass
 
-#------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
 # PARSE PIPELINE
 # Tests for Instruction_Parser.parse and parse_operands — the top-level
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
 
 class TestParseZeroOperandInstruction:
     def test_zero_operand_instruction_clears_both_operands(self, parser):

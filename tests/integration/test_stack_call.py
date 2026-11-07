@@ -2,6 +2,7 @@
 Integration test: push/pop/call/ret and the single-integer
 argument-in-rdi convention. See tests/asm_files/stack_call.asm.
 """
+
 import pytest
 
 from conftest import LIBS_PRESENT

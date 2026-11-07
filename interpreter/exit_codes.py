@@ -1,5 +1,6 @@
 from enum import IntEnum
 
+
 class ExitCode(IntEnum):
     SUCCESS = 0
     IRRECOVERABLE_ERROR = -1000

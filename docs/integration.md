@@ -112,12 +112,12 @@ value = regs.read_reg("al")
 ### Flags
 
 ```python
-regs.read_carry()      # bool
-regs.read_zero()       # bool
-regs.read_sign()       # bool
-regs.read_overflow()   # bool
+regs.read_carry()  # bool
+regs.read_zero()  # bool
+regs.read_sign()  # bool
+regs.read_overflow()  # bool
 regs.read_trap_flag()  # bool
-regs.read_flags()      # 4 bytes, little-endian
+regs.read_flags()  # 4 bytes, little-endian
 regs.write_flags(value)
 regs.exch_flag(flag_id)
 regs.Exch_trap_flag()
@@ -156,7 +156,7 @@ Every stack entry is a fixed 8 bytes; the stack grows downward from
 `STACK_START` (`0x7fffffffe000`) toward `STACK_LIMIT` (`0xe000000000`).
 
 ```python
-mem.push(value)    # value: bytes, up to 8 bytes (zero-padded if shorter)
+mem.push(value)  # value: bytes, up to 8 bytes (zero-padded if shorter)
 value = mem.pop()  # returns 8 bytes, clears the popped slot
 ```
 

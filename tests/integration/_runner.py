@@ -26,6 +26,7 @@ stdout (e.g. via the `write` syscall) appears before both marker lines,
 since it's written during execution, prior to this script's own final
 printing.
 """
+
 import json
 import os
 import sys
@@ -40,9 +41,7 @@ def _find_project_root(start_dir: str) -> str:
             return current
         parent = os.path.dirname(current)
         if parent == current:
-            raise RuntimeError(
-                f"Could not find a 'pyproject.toml' above {start_dir}"
-            )
+            raise RuntimeError(f"Could not find a 'pyproject.toml' above {start_dir}")
         current = parent
 
 
@@ -55,7 +54,7 @@ from interpreter import Interpreter
 
 def main() -> None:
     asm_path = sys.argv[1]
-    
+
     interp = Interpreter(file_name=asm_path, args=["_"])
 
     exit_code = interp.run()

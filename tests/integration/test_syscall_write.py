@@ -6,6 +6,7 @@ Because `write` performs real host I/O (per assembly_specs.md, section
 7 "System Calls"), the subprocess's actual stdout is asserted on
 directly, rather than only checking register state.
 """
+
 import pytest
 
 from conftest import LIBS_PRESENT

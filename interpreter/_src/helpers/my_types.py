@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, TypeAlias, Dict, List, Union
+from typing import TYPE_CHECKING, TypeAlias, Union
 
 if TYPE_CHECKING:
     # Only needed for static type checking -- importing these for real at
@@ -14,18 +14,18 @@ WordSize: TypeAlias = int
 
 # Section Info Aliases
 # .data and .rodata: Mapping a name to its address and size
-DataSectionInfo: TypeAlias = Dict[str, Dict[str, List[Address] | int]]
+DataSectionInfo: TypeAlias = dict[str, dict[str, list[Address] | int]]
 
 # .bss: Mapping a name to its list of addresses and size
-BssSectionInfo: TypeAlias = Dict[str, Dict[str, List[Address] | int]]
+BssSectionInfo: TypeAlias = dict[str, dict[str, list[Address] | int]]
 
-# .text labels: Mapping a name to its index 
-LabelMap: TypeAlias = Dict[str, int]
+# .text labels: Mapping a name to its index
+LabelMap: TypeAlias = dict[str, int]
 
 # Constants: Mapping name to its value and index
-ConstantMap: TypeAlias = Dict[str, Dict[str, int | str]]
+ConstantMap: TypeAlias = dict[str, dict[str, int | str]]
 
 # For getting info on the valid_instructions.json file
-InstructionSet: TypeAlias = Dict[str, Union[List[str], Dict[str, int]]]
+InstructionSet: TypeAlias = dict[str, list[str] | dict[str, int]]
 
 FU: TypeAlias = Union["ALU", "FPU", "Data_Path"]

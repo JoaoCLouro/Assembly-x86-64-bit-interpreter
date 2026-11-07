@@ -3,6 +3,7 @@ Integration test: .data, .rodata, .bss variable declarations, verified
 both by register loads and by direct memory-section state.
 See tests/asm_files/sections_state.asm.
 """
+
 import pytest
 
 from conftest import LIBS_PRESENT
@@ -16,10 +17,10 @@ def test_sections_register_loads(run_asm):
     result = run_asm("sections_state.asm")
     regs = result.registers
 
-    assert regs["r8"] == 42    # loaded from .data counter
-    assert regs["r9"] == 1     # loaded from .data flag
+    assert regs["r8"] == 42  # loaded from .data counter
+    assert regs["r9"] == 1  # loaded from .data flag
     assert regs["r10"] == 100  # loaded from .rodata max_val
-    assert regs["r11"] == 7    # loaded back from .bss scratch after write
+    assert regs["r11"] == 7  # loaded back from .bss scratch after write
 
 
 def test_sections_memory_state(run_asm):

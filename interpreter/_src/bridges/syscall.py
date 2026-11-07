@@ -1,9 +1,8 @@
 import ctypes
 import os
-import sys
 
-from ..bridges.register_manager import Registers_Interface
 from ..bridges.data_memory import Data_Memory
+from ..bridges.register_manager import Registers_Interface
 
 
 class Syscall:
@@ -44,7 +43,7 @@ class Syscall:
     # simulated memory (open() needs a path but has no length argument).
     MAX_PATH_LEN: int = 4096
 
-    __slots__ = ["registers", "memory", "lib"]
+    __slots__ = ["lib", "memory", "registers"]
 
     def __init__(self, registers: Registers_Interface, memory: Data_Memory):
         self.registers = registers
@@ -62,22 +61,18 @@ class Syscall:
         self.lib.sys_read.argtypes = [
             ctypes.c_int,
             ctypes.POINTER(ctypes.c_uint8),
-            ctypes.c_size_t
+            ctypes.c_size_t,
         ]
         self.lib.sys_read.restype = ctypes.c_int64
 
         self.lib.sys_write.argtypes = [
             ctypes.c_int,
             ctypes.POINTER(ctypes.c_uint8),
-            ctypes.c_size_t
+            ctypes.c_size_t,
         ]
         self.lib.sys_write.restype = ctypes.c_int64
 
-        self.lib.sys_open.argtypes = [
-            ctypes.c_char_p,
-            ctypes.c_int,
-            ctypes.c_int
-        ]
+        self.lib.sys_open.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
         self.lib.sys_open.restype = ctypes.c_int64
 
         self.lib.sys_close.argtypes = [ctypes.c_int]
@@ -85,7 +80,7 @@ class Syscall:
 
         self.lib.sys_getrandom.argtypes = [
             ctypes.POINTER(ctypes.c_uint8),
-            ctypes.c_size_t
+            ctypes.c_size_t,
         ]
         self.lib.sys_getrandom.restype = ctypes.c_int64
 
@@ -101,10 +96,10 @@ class Syscall:
         :return: -1 If an error was signaled from the syscall execution, any otherwise
         :rtype: int
         """
-        code: int = self.registers.read_reg('rax')
-        rdi: int = self.registers.read_reg('rdi')
-        rsi: int = self.registers.read_reg('rsi')
-        rdx: int = self.registers.read_reg('rdx')
+        code: int = self.registers.read_reg("rax")
+        rdi: int = self.registers.read_reg("rdi")
+        rsi: int = self.registers.read_reg("rsi")
+        rdx: int = self.registers.read_reg("rdx")
 
         result: int | None = None
 
@@ -125,7 +120,7 @@ class Syscall:
                 return -1
 
         if result is not None:
-            self.registers.write_reg('rax', result, signed=True)
+            self.registers.write_reg("rax", result, signed=True)
             return result
         return 0
 
@@ -161,7 +156,7 @@ class Syscall:
         # Pad to the requested size so write_bytes' size check is satisfied;
         # only the first read_count bytes are meaningful.
         if len(data) < size:
-            data = data.ljust(size, b'\x00')
+            data = data.ljust(size, b"\x00")
         self.memory.write_bytes(addr, data, size)
         return read_count
 
@@ -234,7 +229,7 @@ class Syscall:
 
         data = bytes(buffer[:got])
         if len(data) < size:
-            data = data.ljust(size, b'\x00')
+            data = data.ljust(size, b"\x00")
         self.memory.write_bytes(addr, data, size)
         return got
 
@@ -253,7 +248,7 @@ class Syscall:
         result = bytearray()
         for offset in range(max_len):
             byte = self.memory.read_bytes(addr + offset, 1)
-            if byte == b'\x00':
+            if byte == b"\x00":
                 break
             result.extend(byte)
         return bytes(result)

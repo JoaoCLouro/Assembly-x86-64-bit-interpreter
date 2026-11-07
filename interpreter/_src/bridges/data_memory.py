@@ -1,6 +1,8 @@
 import ctypes
 import os
+
 from .register_manager import Registers_Interface
+
 
 class Data_Memory:
     """
@@ -23,14 +25,19 @@ class Data_Memory:
     :rtype: Data_Memory
     :raises MemoryError: If the memory table fails to initialize
     """
+
     # Memory constraints
     RODATA_BASE: int = 0x500000
-    STACK_START = 0x7fffffffe000
-    STACK_LIMIT: int = 0xe000000000  # Arbitrary lower limit for stack growth to prevent overflow
+    STACK_START = 0x7FFFFFFFE000
+    STACK_LIMIT: int = (
+        0xE000000000  # Arbitrary lower limit for stack growth to prevent overflow
+    )
 
-    __slots__ = ['start', 'registers', 'lib', 'table', '_cleaned']
+    __slots__ = ["_cleaned", "lib", "registers", "start", "table"]
 
-    def __init__(self, registers: Registers_Interface, memory_base: int = RODATA_BASE) -> None:
+    def __init__(
+        self, registers: Registers_Interface, memory_base: int = RODATA_BASE
+    ) -> None:
         self._cleaned = False
         self.start: int = memory_base
         self.registers = registers
@@ -52,24 +59,26 @@ class Data_Memory:
         self.lib.write_mem.argtypes = [
             ctypes.c_void_p,
             ctypes.c_uint64,
-            ctypes.POINTER(ctypes.c_uint8),   # data buffer (was mistakenly a bare c_uint8)
-            ctypes.c_uint8,                    # size
-            ctypes.c_uint8                     # create_page
+            ctypes.POINTER(
+                ctypes.c_uint8
+            ),  # data buffer (was mistakenly a bare c_uint8)
+            ctypes.c_uint8,  # size
+            ctypes.c_uint8,  # create_page
         ]
         self.lib.write_mem.restype = ctypes.c_int
         self.lib.read_mem.argtypes = [
             ctypes.c_void_p,
             ctypes.c_uint64,
-            ctypes.POINTER(ctypes.c_uint8),   # result buffer
-            ctypes.c_uint8                     # size
+            ctypes.POINTER(ctypes.c_uint8),  # result buffer
+            ctypes.c_uint8,  # size
         ]
         self.lib.read_mem.restype = ctypes.c_int
 
         self.table = self.lib.table_init()
         # Double check for table init
-        if (not self.table):
+        if not self.table:
             raise MemoryError("Failed to initialize memory table.")
-    
+
     def clean(self):
         """
         Calls the cleaning routine from the memory_eng.c to free memory
@@ -99,14 +108,19 @@ class Data_Memory:
         # Python types to C types conversions and buffer allocation
         buffer = (ctypes.c_uint8 * size)()  # Create a buffer to hold the read bytes
         c_addr: ctypes.c_uint64 = ctypes.c_uint64(addr)  # Convert address to C type
-        c_size: ctypes.c_uint8 = ctypes.c_uint8(size)  # Convert size to C type (uint8_t per memory_eng.h)
+        c_size: ctypes.c_uint8 = ctypes.c_uint8(
+            size
+        )  # Convert size to C type (uint8_t per memory_eng.h)
 
-        if self.lib.read_mem(self.table, c_addr, buffer, c_size) == 1:  # Read memory into the buffer
+        if (
+            self.lib.read_mem(self.table, c_addr, buffer, c_size) == 1
+        ):  # Read memory into the buffer
             raise MemoryError(f"Segmentation Fault at 0x{hex(addr)}")
         return bytes(buffer)  # Convert the buffer to bytes and return
 
-
-    def write_bytes(self, addr: int, data: bytes, size: int, create_page: bool = True) -> None:
+    def write_bytes(
+        self, addr: int, data: bytes, size: int, create_page: bool = True
+    ) -> None:
         """
         Writes a byte representation of the desired data with a specific size in a specific address/addresses.\n
         Uses the write_mem function from the c script to write the value to memory.\n
@@ -129,11 +143,20 @@ class Data_Memory:
             data = self.get_valid_data(data, size)
 
         # Python types to C types conversions and buffer allocation
-        c_data = (ctypes.c_uint8 * size).from_buffer_copy(data)  # Convert data to a C array
+        c_data = (ctypes.c_uint8 * size).from_buffer_copy(
+            data
+        )  # Convert data to a C array
         c_addr: ctypes.c_uint64 = ctypes.c_uint64(addr)  # Convert address to C type
-        c_size: ctypes.c_uint8 = ctypes.c_uint8(size)  # Convert size to C type (uint8_t per memory_eng.h)
+        c_size: ctypes.c_uint8 = ctypes.c_uint8(
+            size
+        )  # Convert size to C type (uint8_t per memory_eng.h)
 
-        if self.lib.write_mem(self.table, c_addr, c_data, c_size, 1 if create_page else 0) == 1:  # Write memory from the C array
+        if (
+            self.lib.write_mem(
+                self.table, c_addr, c_data, c_size, 1 if create_page else 0
+            )
+            == 1
+        ):  # Write memory from the C array
             raise MemoryError(f"Segmentation Fault at 0x{hex(addr)}")
 
     # --------------------------------------
@@ -166,7 +189,7 @@ class Data_Memory:
         :return: Full data with all implicit bytes written out
         :rtype: bytes
         """
-        return data[:size].ljust(size, b'\x00')
+        return data[:size].ljust(size, b"\x00")
 
     # --------------------------------------------
     #  STACK OPERATIONS (fixed 8 bytes per entry)
@@ -188,7 +211,7 @@ class Data_Memory:
         if len(value) > 8:
             raise ValueError("Value exceeds stack cell size of 8 bytes.")
 
-        rsp = self.registers.read_reg('rsp')
+        rsp = self.registers.read_reg("rsp")
         # Check for stack overflow before pushing
         if rsp - 8 < self.STACK_LIMIT:
             raise MemoryError("Stack overflow: cannot push more data to the stack.")
@@ -198,7 +221,7 @@ class Data_Memory:
             value = self.get_valid_data(value, 8)
 
         # stack grows downward
-        self.registers.write_reg('rsp', rsp - 0x8)
+        self.registers.write_reg("rsp", rsp - 0x8)
         self.write_bytes(rsp - 0x8, value, 8)
 
     def pop(self) -> bytes:
@@ -209,11 +232,13 @@ class Data_Memory:
         :type: bytes
         :raises MemoryError: If the stack underflow's (i.e., if the stack pointer goes above the stack start address)
         """
-        rsp = self.registers.read_reg('rsp')
+        rsp = self.registers.read_reg("rsp")
         # Check for stack underflow before popping
         if rsp >= self.STACK_START:
             raise MemoryError("Stack underflow: cannot pop from an empty stack.")
         value = self.read_bytes(rsp, 8)
-        self.write_bytes(rsp, b'\x00' * 8, 8)  # Clear the popped value from the stack (optional)
-        self.registers.write_reg('rsp', rsp + 0x8)
+        self.write_bytes(
+            rsp, b"\x00" * 8, 8
+        )  # Clear the popped value from the stack (optional)
+        self.registers.write_reg("rsp", rsp + 0x8)
         return value

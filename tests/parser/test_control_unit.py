@@ -17,19 +17,19 @@ execute_state_command's interactive input() loop is intentionally out of
 scope for this suite.
 """
 
-import sys
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import Mock, call
 
 from interpreter._src.parsing import control_unit as cu_module
 from interpreter._src.parsing.control_unit import Control_Unit
 from interpreter._src.parsing.instruction_parser import Operand
 from interpreter.exit_codes import ExitCode
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def control_unit():
@@ -69,8 +69,10 @@ def instructions_patch(monkeypatch):
     valid_operand_count read from, so tests don't depend on the real
     valid_instructions.json content.
     """
+
     def _apply(mapping: dict) -> None:
         monkeypatch.setattr(cu_module, "INSTRUCTIONS", mapping)
+
     return _apply
 
 
@@ -78,10 +80,14 @@ def instructions_patch(monkeypatch):
 # is_valid_instruction
 # ---------------------------------------------------------------------------
 
-class TestIsValidInstruction:
 
-    def test_syscall_always_sets_cpu_fu_and_returns_true(self, control_unit, instructions_patch):
-        instructions_patch({})  # not even present in INSTRUCTIONS; syscall short-circuits
+class TestIsValidInstruction:
+    def test_syscall_always_sets_cpu_fu_and_returns_true(
+        self, control_unit, instructions_patch
+    ):
+        instructions_patch(
+            {}
+        )  # not even present in INSTRUCTIONS; syscall short-circuits
         control_unit.current_fu = "alu"  # prove it gets overwritten
 
         result = control_unit._is_valid_instruction("syscall")
@@ -112,7 +118,9 @@ class TestIsValidInstruction:
 
         assert result is False
 
-    def test_unknown_instruction_does_not_change_current_fu(self, control_unit, instructions_patch):
+    def test_unknown_instruction_does_not_change_current_fu(
+        self, control_unit, instructions_patch
+    ):
         instructions_patch({"alu": {"add": 2}})
         control_unit.current_fu = "data_path"
 
@@ -125,8 +133,8 @@ class TestIsValidInstruction:
 # get_current_fu
 # ---------------------------------------------------------------------------
 
-class TestGetCurrentFu:
 
+class TestGetCurrentFu:
     def test_returns_data_path_instance(self, control_unit):
         control_unit.current_fu = "data_path"
         assert control_unit._get_current_fu() is control_unit.data_path
@@ -149,18 +157,24 @@ class TestGetCurrentFu:
 # valid_operand_count
 # ---------------------------------------------------------------------------
 
-class TestValidOperandCount:
 
-    def test_matching_operand_count_returns_true(self, control_unit, instructions_patch):
+class TestValidOperandCount:
+    def test_matching_operand_count_returns_true(
+        self, control_unit, instructions_patch
+    ):
         instructions_patch({"alu": {"add": 2}})
         control_unit.current_fu = "alu"
         control_unit.current_instruction = "add"
         control_unit.op1.set("rax", 1, 0, 8)
-        control_unit.op2.set("rbx", 1, 1, 8)  # both valid -> count 2, matches expected 2
+        control_unit.op2.set(
+            "rbx", 1, 1, 8
+        )  # both valid -> count 2, matches expected 2
 
         assert control_unit._valid_operand_count() is True
 
-    def test_mismatched_operand_count_returns_false(self, control_unit, instructions_patch):
+    def test_mismatched_operand_count_returns_false(
+        self, control_unit, instructions_patch
+    ):
         instructions_patch({"alu": {"add": 2}})
         control_unit.current_fu = "alu"
         control_unit.current_instruction = "add"
@@ -183,8 +197,8 @@ class TestValidOperandCount:
 # fetch
 # ---------------------------------------------------------------------------
 
-class TestFetch:
 
+class TestFetch:
     def test_label_only_line_is_skipped(self, control_unit, instructions_patch):
         instructions_patch({})
         control_unit.text_section = [["my_label"]]
@@ -195,7 +209,9 @@ class TestFetch:
 
         control_unit.instruction_parser.parse.assert_not_called()
 
-    def test_valid_instruction_line_parses_and_sets_state(self, control_unit, instructions_patch):
+    def test_valid_instruction_line_parses_and_sets_state(
+        self, control_unit, instructions_patch
+    ):
         instructions_patch({"alu": {"add": 2}})
         control_unit.text_section = [["add", "rax", "rbx"]]
         control_unit.rip = 0
@@ -208,7 +224,9 @@ class TestFetch:
         assert control_unit.current_fu == "alu"
         control_unit.instruction_parser.parse.assert_called_once()
 
-    def test_empty_line_exits_with_software_error(self, control_unit, instructions_patch):
+    def test_empty_line_exits_with_software_error(
+        self, control_unit, instructions_patch
+    ):
         instructions_patch({})
         control_unit.text_section = [[]]
         control_unit.rip = 0
@@ -218,7 +236,9 @@ class TestFetch:
 
         assert exc_info.value.code == ExitCode.SOFTWARE_ERROR
 
-    def test_invalid_instruction_raises_value_error(self, control_unit, instructions_patch):
+    def test_invalid_instruction_raises_value_error(
+        self, control_unit, instructions_patch
+    ):
         instructions_patch({"alu": {"add": 2}})
         control_unit.text_section = [["totally_bogus_instruction"]]
         control_unit.rip = 0
@@ -268,8 +288,8 @@ class TestFetch:
 # execute
 # ---------------------------------------------------------------------------
 
-class TestExecute:
 
+class TestExecute:
     def test_cpu_fu_calls_syscall(self, control_unit):
         control_unit.current_fu = "cpu"
         control_unit.syscall.syscall.return_value = 0
@@ -294,7 +314,9 @@ class TestExecute:
 
         control_unit._execute("add")
 
-        control_unit.alu.load_values.assert_called_once_with("add", control_unit.op1, control_unit.op2)
+        control_unit.alu.load_values.assert_called_once_with(
+            "add", control_unit.op1, control_unit.op2
+        )
         control_unit.alu.execute.assert_called_once()
         assert control_unit.rip == 5  # unchanged since execute() returned None
 
@@ -304,7 +326,9 @@ class TestExecute:
 
         control_unit._execute("fadd")
 
-        control_unit.fpu.load_values.assert_called_once_with("fadd", control_unit.op1, control_unit.op2)
+        control_unit.fpu.load_values.assert_called_once_with(
+            "fadd", control_unit.op1, control_unit.op2
+        )
         control_unit.fpu.execute.assert_called_once()
 
     def test_data_path_call_instruction_loads_rip_first(self, control_unit):
@@ -315,7 +339,9 @@ class TestExecute:
         control_unit._execute("call")
 
         control_unit.data_path.load_rip.assert_called_once_with(42)
-        control_unit.data_path.load_values.assert_called_once_with("call", control_unit.op1, control_unit.op2)
+        control_unit.data_path.load_values.assert_called_once_with(
+            "call", control_unit.op1, control_unit.op2
+        )
 
     def test_data_path_non_call_instruction_does_not_load_rip(self, control_unit):
         control_unit.current_fu = "data_path"
@@ -348,9 +374,11 @@ class TestExecute:
 # step
 # ---------------------------------------------------------------------------
 
-class TestStep:
 
-    def test_step_fetches_executes_and_advances_rip(self, control_unit, instructions_patch, monkeypatch):
+class TestStep:
+    def test_step_fetches_executes_and_advances_rip(
+        self, control_unit, instructions_patch, monkeypatch
+    ):
         instructions_patch({"alu": {"add": 2}})
         control_unit.text_section = [["add", "rax", "rbx"]]
         control_unit.rip = 0
@@ -371,7 +399,9 @@ class TestStep:
 
         assert exc_info.value.code == ExitCode.NO_EXIT_FOUND
 
-    def test_step_label_line_does_not_execute_but_advances_rip(self, control_unit, instructions_patch):
+    def test_step_label_line_does_not_execute_but_advances_rip(
+        self, control_unit, instructions_patch
+    ):
         instructions_patch({})
         control_unit.text_section = [["my_label"]]
         control_unit.labels = {"my_label": 0}
@@ -384,7 +414,9 @@ class TestStep:
         control_unit.data_path.execute.assert_not_called()
         assert control_unit.rip == 1
 
-    def test_step_value_error_from_fetch_exits_with_code_1(self, control_unit, instructions_patch):
+    def test_step_value_error_from_fetch_exits_with_code_1(
+        self, control_unit, instructions_patch
+    ):
         instructions_patch({"alu": {"add": 2}})
         control_unit.text_section = [["totally_bogus"]]
         control_unit.rip = 0
@@ -399,8 +431,8 @@ class TestStep:
 # run
 # ---------------------------------------------------------------------------
 
-class TestRun:
 
+class TestRun:
     def test_run_increments_rip_before_looping(self, control_unit, monkeypatch):
         control_unit.rip = 0
         control_unit.finished = True  # loop body never runs
@@ -443,7 +475,9 @@ class TestRun:
 
         control_unit.registers.read_trap_flag.assert_called()
 
-    def test_run_enters_debug_command_when_trap_flag_set(self, control_unit, monkeypatch):
+    def test_run_enters_debug_command_when_trap_flag_set(
+        self, control_unit, monkeypatch
+    ):
         control_unit.rip = -1
         control_unit.registers.read_trap_flag.return_value = 1
         debug_called = {"called": False}
@@ -459,7 +493,9 @@ class TestRun:
 
         assert debug_called["called"] is True
 
-    def test_run_catches_exceptions_from_step_and_marks_finished(self, control_unit, monkeypatch, capsys):
+    def test_run_catches_exceptions_from_step_and_marks_finished(
+        self, control_unit, monkeypatch, capsys
+    ):
         control_unit.rip = -1
         control_unit.registers.read_trap_flag.return_value = 0
 
@@ -479,16 +515,19 @@ class TestRun:
 # print_section
 # ---------------------------------------------------------------------------
 
-class TestPrintSection:
 
+class TestPrintSection:
     def test_empty_section_prints_placeholder(self, control_unit, capsys):
         control_unit._print_section({})
 
         captured = capsys.readouterr()
         assert "(empty section)" in captured.out
 
-    def test_prints_all_variables_with_correct_signed_values(self, control_unit, capsys):
+    def test_prints_all_variables_with_correct_signed_values(
+        self, control_unit, capsys
+    ):
         store = {}
+
         def make_var(base, size, value):
             data = value.to_bytes(size, "little", signed=True)
             for i, b in enumerate(data):
@@ -522,8 +561,8 @@ class TestPrintSection:
                 store[base + j] = b
             section[name] = {"size": 8, "addresses": list(range(base, base + 8))}
 
-        control_unit.memory.read_bytes.side_effect = (
-            lambda addr, size: bytes(store.get(addr + i, 0) for i in range(size))
+        control_unit.memory.read_bytes.side_effect = lambda addr, size: bytes(
+            store.get(addr + i, 0) for i in range(size)
         )
 
         control_unit._print_section(section)

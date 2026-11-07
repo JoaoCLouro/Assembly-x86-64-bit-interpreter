@@ -2,24 +2,28 @@ import os
 import sys
 import threading
 
-from ..helpers.my_types import DataSectionInfo, BssSectionInfo, LabelMap, ConstantMap, FU
+from interpreter.exit_codes import ExitCode
 
 from ..bridges.data_memory import Data_Memory
 from ..bridges.register_manager import Registers_Interface
 from ..bridges.syscall import Syscall
-
+from ..FUs.alu import ALU
+from ..FUs.data_path import Data_Path
+from ..FUs.fpu import FPU
+from ..helpers.my_types import (
+    FU,
+    BssSectionInfo,
+    ConstantMap,
+    DataSectionInfo,
+    LabelMap,
+)
+from .instruction_parser import Instruction_Parser, Operand
 from .patter_matching_helpers import INSTRUCTIONS
 from .segment_mapper import Segment_Mapper
-from .instruction_parser import Instruction_Parser, Operand
-
-from ..FUs.data_path import Data_Path
-from ..FUs.alu import ALU
-from ..FUs.fpu import FPU
-
-from interpreter.exit_codes import ExitCode
 
 _count = os.cpu_count()
 TOTAL_THREADS: int = _count if _count != None else 0
+
 
 class Control_Unit:
     """
@@ -31,22 +35,43 @@ class Control_Unit:
         # TO DO
     """
 
-    __slots__ = ["registers", "memory", "data_path", "alu", "fpu", "syscall", "rip", 
-                 "text_section", "rodata_section", "data_section", "bss_section", "labels", "constants", 
-                 "finished", 
-                 "current_fu", "current_instruction", "op1", "op2", "instruction_parser"]
+    __slots__ = [
+        "alu",
+        "bss_section",
+        "constants",
+        "current_fu",
+        "current_instruction",
+        "data_path",
+        "data_section",
+        "finished",
+        "fpu",
+        "instruction_parser",
+        "labels",
+        "memory",
+        "op1",
+        "op2",
+        "registers",
+        "rip",
+        "rodata_section",
+        "syscall",
+        "text_section",
+    ]
 
-    def __init__ (self,loader: Segment_Mapper, debugging:bool = False) -> None:
+    def __init__(self, loader: Segment_Mapper, debugging: bool = False) -> None:
         # Initialize Control Unit with memory, segment mapper, functional units and registers (general purpose, fpu and flags)
         self.registers: Registers_Interface = loader.registers
         self.memory: Data_Memory = loader.memory
-        self.data_path: Data_Path = Data_Path(self.registers, self.memory, loader.labels)
+        self.data_path: Data_Path = Data_Path(
+            self.registers, self.memory, loader.labels
+        )
         self.syscall: Syscall = Syscall(self.registers, self.memory)
         self.alu: ALU = ALU(self.registers, self.memory)
         self.fpu: FPU = FPU(self.registers, self.memory)
 
         # Useful registers and flags attributes
-        self.rip: int = loader.rip  # Instruction Pointer initialized from Segment Mapper
+        self.rip: int = (
+            loader.rip
+        )  # Instruction Pointer initialized from Segment Mapper
         # Turns debugging on
         if debugging:
             self.registers.Exch_trap_flag()
@@ -61,19 +86,28 @@ class Control_Unit:
 
         # Helper instances for the execution
         self.finished: bool = False
-        self.current_fu: str = "cpu" # (cpu/data_path/alu/fpu)
+        self.current_fu: str = "cpu"  # (cpu/data_path/alu/fpu)
         self.current_instruction: str = ""
         self.op1: Operand = Operand()
         self.op2: Operand = Operand()
-        self.instruction_parser: Instruction_Parser = Instruction_Parser(self.op1, self.op2, self.labels, self.constants, self.rodata_section, self.data_section, self.bss_section, self.registers)
+        self.instruction_parser: Instruction_Parser = Instruction_Parser(
+            self.op1,
+            self.op2,
+            self.labels,
+            self.constants,
+            self.rodata_section,
+            self.data_section,
+            self.bss_section,
+            self.registers,
+        )
 
     def __del__(self):
         # Classes with a __del__ method implemented that dynamically allocate space on the heap
-        self.alu = None # type: ignore
-        self.fpu = None # type: ignore
+        self.alu = None  # type: ignore
+        self.fpu = None  # type: ignore
         self.registers.clean()
         self.memory.clean()
-    
+
     # ------------------
     # Callable methods
     # ------------------
@@ -96,55 +130,55 @@ class Control_Unit:
                 self.finished = True
             except SystemExit as e:
                 print(f"Exit due to {e}")
-                return e.code # type: ignore
+                return e.code  # type: ignore
         return ExitCode.SUCCESS
 
     def get_state(self, section: str, num_rep: int = 16) -> dict[str, int | str]:
-            """
-            Returns a snapshot of observable CPU/memory state as a dict of
-            name -> current value, for the given named section.\n
-            This is the return-value counterpart to print_section/
-            execute_state_command's inspection commands: same underlying reads,
-            same threaded fetch for memory sections, but handed back as data
-            instead of printed to stdout — useful for tests or any caller that
-            wants to assert on or further process the state rather than just
-            display it.
-    
-            :param section: Which piece of state to fetch: 'all', 'data', 'rodata', 'bss', or 'registers'
-            :type section: str
-            :param num_rep: Numerical Representation to give values in - 10 (decimal, default), 2 (binary), 8 (octal), or 16 (hexadecimal). Non-decimal bases return Python-style prefixed strings (e.g. "0x2a"); negative values are shown as their two's-complement bit pattern at the value's actual width, not a signed "-0x.." string.
-            :type num_rep: int
-            :return: Mapping of variable/register name to its current value - a plain int for decimal, or a base-prefixed string for binary/octal/hexadecimal
-            :rtype: dict[str, int | str]
-            :raises ValueError: If section is not one of the recognized names, or num_rep is not one of 2, 8, 10, 16
-            """
-            if num_rep not in (2, 8, 10, 16):
-                raise ValueError(f"UNSUPPORTED NUMERICAL REPRESENTATION '{num_rep}'. Expected one of: 2, 8, 10, 16.")
+        """
+        Returns a snapshot of observable CPU/memory state as a dict of
+        name -> current value, for the given named section.\n
+        This is the return-value counterpart to print_section/
+        execute_state_command's inspection commands: same underlying reads,
+        same threaded fetch for memory sections, but handed back as data
+        instead of printed to stdout — useful for tests or any caller that
+        wants to assert on or further process the state rather than just
+        display it.
 
-            if section == "all":
-                data = self._get_memory_section_state(self.data_section, num_rep)
-                rodata = self._get_memory_section_state(self.rodata_section, num_rep)
-                bss = self._get_memory_section_state(self.bss_section, num_rep)
-                registers = self._get_registers_state(num_rep)
-                return Control_Unit._merge_list([rodata, data, bss, registers]) # type: ignore
-            
+        :param section: Which piece of state to fetch: 'all', 'data', 'rodata', 'bss', or 'registers'
+        :type section: str
+        :param num_rep: Numerical Representation to give values in - 10 (decimal, default), 2 (binary), 8 (octal), or 16 (hexadecimal). Non-decimal bases return Python-style prefixed strings (e.g. "0x2a"); negative values are shown as their two's-complement bit pattern at the value's actual width, not a signed "-0x.." string.
+        :type num_rep: int
+        :return: Mapping of variable/register name to its current value - a plain int for decimal, or a base-prefixed string for binary/octal/hexadecimal
+        :rtype: dict[str, int | str]
+        :raises ValueError: If section is not one of the recognized names, or num_rep is not one of 2, 8, 10, 16
+        """
+        if num_rep not in (2, 8, 10, 16):
+            raise ValueError(
+                f"UNSUPPORTED NUMERICAL REPRESENTATION '{num_rep}'. Expected one of: 2, 8, 10, 16."
+            )
 
-            elif section == "data":
-                return self._get_memory_section_state(self.data_section, num_rep)
-            elif section == "rodata":
-                return self._get_memory_section_state(self.rodata_section, num_rep)
-            elif section == "bss":
-                return self._get_memory_section_state(self.bss_section, num_rep)
-            elif section == "registers":
-                return self._get_registers_state(num_rep)
-            else:
-                raise ValueError(f"UNKNOWN SECTION '{section}' REQUESTED FOR get_state.")
-    
+        if section == "all":
+            data = self._get_memory_section_state(self.data_section, num_rep)
+            rodata = self._get_memory_section_state(self.rodata_section, num_rep)
+            bss = self._get_memory_section_state(self.bss_section, num_rep)
+            registers = self._get_registers_state(num_rep)
+            return Control_Unit._merge_list([rodata, data, bss, registers])  # type: ignore
 
-    #---------------------------------
+        elif section == "data":
+            return self._get_memory_section_state(self.data_section, num_rep)
+        elif section == "rodata":
+            return self._get_memory_section_state(self.rodata_section, num_rep)
+        elif section == "bss":
+            return self._get_memory_section_state(self.bss_section, num_rep)
+        elif section == "registers":
+            return self._get_registers_state(num_rep)
+        else:
+            raise ValueError(f"UNKNOWN SECTION '{section}' REQUESTED FOR get_state.")
+
+    # ---------------------------------
     # Cycle execution methods
-    #---------------------------------
-    
+    # ---------------------------------
+
     def _step(self) -> None:
         try:
             # 1. Gets the instruction, operands and functional unit in use and verifies it's compatibility it the operator count of the instruction
@@ -152,12 +186,14 @@ class Control_Unit:
                 if self._fetch():
                     self._execute(self.current_instruction)
             else:
-                print("NO VALID EXIT WAS VALID TO THE PROGRAM.\n Forcing program's exit...")
+                print(
+                    "NO VALID EXIT WAS VALID TO THE PROGRAM.\n Forcing program's exit..."
+                )
                 sys.exit(ExitCode.NO_EXIT_FOUND)
             self.rip += 1
         except ValueError as e:
             print(e)
-            sys.exit(ExitCode.INVALID_OR_UNSUPPORTED_INSTRUCTION) 
+            sys.exit(ExitCode.INVALID_OR_UNSUPPORTED_INSTRUCTION)
 
     # -------------------------------
     # Main Logic Implementation
@@ -167,8 +203,8 @@ class Control_Unit:
         """
         Fetches the current instruction and its operands from the text section based on the instruction pointer (RIP).\n
         Sets the current instruction and current functional unit in use and validates and sets the operands and its size.
-        Raises a ValueError if the instruction is invalid or if the operands are invalid.        
-        
+        Raises a ValueError if the instruction is invalid or if the operands are invalid.
+
         :return: True if an instruction was found, False if a label was found
         :rtype: bool
         :raises ValueError: If the instruction is invalid or if the operands are invalid.
@@ -178,11 +214,11 @@ class Control_Unit:
         # Means parsing failed to filter out empty lines and potentially comments too
         if not line:
             sys.exit(ExitCode.SOFTWARE_ERROR)
-        
+
         # Verifies if the line is a label declaration and skips it if so
         if len(line) == 1 and line[0].strip(":") in self.labels:
             return False
-        
+
         # Verifies if the line is an instruction and sets the instruction, f.u. in use and operand info needed for execution (size, type, value, address)
         elif self._is_valid_instruction(line[0]):
             self.current_instruction = line[0]
@@ -197,26 +233,28 @@ class Control_Unit:
                 print(e)
                 sys.exit(ExitCode.INVALID_INSTRUCTION_SYNTAX)
 
-            # Verifies if the number of operands registered are compatible with the instructions documentation in the valid_instructions json file    
+            # Verifies if the number of operands registered are compatible with the instructions documentation in the valid_instructions json file
             if self._valid_operand_count():
                 return True
             else:
                 # If incompatible reset all info to a Null value and raise an exception
                 self.op1.clear()
                 self.op2.clear()
-                print(f"INVALID OPERAND COUNT FOR INSTRUCTION AT LINE {self.rip}. Exiting program...")
+                print(
+                    f"INVALID OPERAND COUNT FOR INSTRUCTION AT LINE {self.rip}. Exiting program..."
+                )
                 sys.exit(ExitCode.INVALID_INSTRUCTION_SYNTAX)
-        
+
         # If the instruction wasn't found, raise an exception
         else:
             raise ValueError(f"INVALID INSTRUCTION AT LINE {self.rip}!")
-    
+
     def _execute(self, instruction: str) -> None:
         """
         Transfers executions to the class with the functional unit responsible for the instruction
         in the current instruction in this class's respective instance
         and retrieves the result of the operation if any and the flags state that resulted from the operation.
-        
+
         """
         if self.current_fu == "cpu":
             # Calls syscall decoder methods
@@ -229,10 +267,10 @@ class Control_Unit:
         else:
             current_fu: FU = self._get_current_fu()
             if self.current_fu == "data_path" and instruction == "call":
-                current_fu.load_rip(self.rip)   # type: ignore
+                current_fu.load_rip(self.rip)  # type: ignore
             current_fu.load_values(instruction, self.op1, self.op2)
             try:
-                ret = current_fu.execute()      # type: ignore ONLY FOR JUMPS, CALL'S AND RET
+                ret = current_fu.execute()  # type: ignore ONLY FOR JUMPS, CALL'S AND RET
                 self.rip = ret if ret != None else self.rip
             except RuntimeError:
                 sys.exit(ExitCode.INVALID_INSTRUCTION_SYNTAX)
@@ -240,8 +278,6 @@ class Control_Unit:
                 sys.exit(ExitCode.BY_0_DIVISION_ERROR)
             except NameError:
                 sys.exit(ExitCode.INVALID_OR_UNSUPPORTED_INSTRUCTION)
-
-
 
     # ----------------------------------------
     # Execution Helpers
@@ -260,11 +296,13 @@ class Control_Unit:
         if instruction == "syscall":
             self.current_fu = "cpu"
             return True
-        
+
         for functional_units in INSTRUCTIONS.keys():
             if instruction in INSTRUCTIONS[functional_units]:
                 self.current_fu = functional_units
-                self.instruction_parser.expected_op_count = INSTRUCTIONS[functional_units][instruction]
+                self.instruction_parser.expected_op_count = INSTRUCTIONS[
+                    functional_units
+                ][instruction]
                 return True
 
         return False
@@ -276,7 +314,7 @@ class Control_Unit:
         :return: Functional unit object at use
         :rtype: FU (Type Alias for all functional unit types)
         """
-        # 'cpu' is safely ignored as at this point it would already be taken care of 
+        # 'cpu' is safely ignored as at this point it would already be taken care of
         if self.current_fu == "data_path":
             return self.data_path
         elif self.current_fu == "alu":
@@ -285,7 +323,7 @@ class Control_Unit:
             return self.fpu
         else:
             raise ValueError("NO FUNCTIONAL UNIT FOUND.\n Exiting program...")
-        
+
     def _valid_operand_count(self) -> bool:
         """
         Verifies if the current operand count is valid for the current instruction
@@ -293,8 +331,9 @@ class Control_Unit:
         :return: True if the current operand count is valid for the current instruction
         :rtype: bool
         """
-        return INSTRUCTIONS[self.current_fu][self.current_instruction] == (self.op1.is_valid() + self.op2.is_valid())     
-
+        return INSTRUCTIONS[self.current_fu][self.current_instruction] == (
+            self.op1.is_valid() + self.op2.is_valid()
+        )
 
     # -------------------
     # DEBUGGING METHODS
@@ -317,11 +356,13 @@ class Control_Unit:
         - 'exit': exits the program and stops execution
         If an invalid command is given it will print an error message and ask for a new command.
         """
-        while True: # Transform into a case switch 
-            command: str = input("Enter a command to print the state of the program or 'help' to see the list of commands available: ")
+        while True:  # Transform into a case switch
+            command: str = input(
+                "Enter a command to print the state of the program or 'help' to see the list of commands available: "
+            )
             if command == "registers":
                 print(self.registers)
-                
+
             elif command == "memory":
                 print("\n--//--\ndata section:\n")
                 self._print_section(self.data_section)
@@ -335,17 +376,17 @@ class Control_Unit:
                 print("\n--//--\ndata section:\n")
                 self._print_section(self.data_section)
                 print("\n--//--\n")
-                
+
             elif command == "rodata":
                 print("\n--//--\nrodata section:\n")
                 self._print_section(self.rodata_section)
                 print("\n--//--\n")
-            
+
             elif command == "bss":
                 print("\n--//--\nbss section:\n")
                 self._print_section(self.bss_section)
                 print("\n--//--\n")
-                
+
             elif command == "rip":
                 print("\n--//--\n")
                 print(f"Current value of rip: {self.rip}")
@@ -358,7 +399,9 @@ class Control_Unit:
 
             elif command == "help":
                 print("\n--//--\n")
-                print("List of commands available:\n- 'registers': prints the state of the registers\n- 'memory': prints the state of the memory\n- 'data': prints the state of the data section\n- 'rodata': prints the state of the rodata section\n- 'bss': prints the state of the bss section\n- 'rip': prints the current value of the rip register\n- 'fu': prints the current functional unit in use\n- 'help': prints this list of commands available\n- 'step': steps into the next instruction in the execution\n- ' continue': continues with the normal execution exiting debug mode\n- 'exit': exits the program and stops execution")
+                print(
+                    "List of commands available:\n- 'registers': prints the state of the registers\n- 'memory': prints the state of the memory\n- 'data': prints the state of the data section\n- 'rodata': prints the state of the rodata section\n- 'bss': prints the state of the bss section\n- 'rip': prints the current value of the rip register\n- 'fu': prints the current functional unit in use\n- 'help': prints this list of commands available\n- 'step': steps into the next instruction in the execution\n- 'continue': continues with the normal execution exiting debug mode\n- 'exit': exits the program and stops execution"
+                )
                 print("\n--//--\n")
 
             elif command == "step":
@@ -366,14 +409,15 @@ class Control_Unit:
 
             elif command == "run":
                 self.registers.Exch_trap_flag()
-                return 
-            
+                return
+
             elif command == "exit":
                 print("Exiting program and stopping execution...")
                 sys.exit(0)
             else:
-                print("Invalid command! Enter 'help' to see the list of commands available.")   
-
+                print(
+                    "Invalid command! Enter 'help' to see the list of commands available."
+                )
 
     def _print_section(self, section: DataSectionInfo | BssSectionInfo) -> None:
         """
@@ -386,7 +430,7 @@ class Control_Unit:
         variable at a time. Printing itself is deferred until every thread
         has finished, so output for different variables never interleaves
         and is always printed in the section's original declaration order.
- 
+
         Section schema, per variable:
             {
                 "var_name": {
@@ -394,7 +438,7 @@ class Control_Unit:
                     "addresses": [<byte address>, ...]
                 }
             }
- 
+
         :param section: The program section to print (data_section, rodata_section, or bss_section)
         :type section: DataSectionInfo | BssSectionInfo
         :return: None
@@ -412,7 +456,7 @@ class Control_Unit:
     # ----------------------------------------
     # get_state / print_section helpers
     # ----------------------------------------
-    
+
     @staticmethod
     def _merge_list(list: list[dict[str, int]]) -> dict[str, int]:
         """
@@ -426,10 +470,9 @@ class Control_Unit:
         """
         merged = {}
         for section in list:
-            if section != None: # type: ignore
-                merged.update(section) # type: ignore
-        return merged # type: ignore
-
+            if section != None:  # type: ignore
+                merged.update(section)  # type: ignore
+        return merged  # type: ignore
 
     @staticmethod
     def _format_value(value: int, size_bytes: int, num_rep: int) -> int | str:
@@ -469,9 +512,13 @@ class Control_Unit:
         elif num_rep == 2:
             return f"0b{unsigned_value:b}"
         else:
-            raise ValueError(f"UNSUPPORTED NUMERICAL REPRESENTATION '{num_rep}'. Expected one of: 2, 8, 10, 16.")
+            raise ValueError(
+                f"UNSUPPORTED NUMERICAL REPRESENTATION '{num_rep}'. Expected one of: 2, 8, 10, 16."
+            )
 
-    def _get_memory_section_state(self, section: DataSectionInfo | BssSectionInfo, num_rep: int) -> dict[str, int | str]:
+    def _get_memory_section_state(
+        self, section: DataSectionInfo | BssSectionInfo, num_rep: int
+    ) -> dict[str, int | str]:
         """
         Threaded-fetch counterpart to print_section, returning the section's
         variable values as a dict instead of printing them.
@@ -505,18 +552,37 @@ class Control_Unit:
         """
         state: dict[str, int | str] = {}
         for reg_name in Registers_Interface.REGISTERS_MAP:
-            state[reg_name] = Control_Unit._format_value(self.registers.read_reg(reg_name), 8, num_rep)
+            state[reg_name] = Control_Unit._format_value(
+                self.registers.read_reg(reg_name), 8, num_rep
+            )
 
-        state["ZF"] = Control_Unit._format_value(int(self.registers.read_zero()), 1, num_rep)
-        state["CF"] = Control_Unit._format_value(int(self.registers.read_carry()), 1, num_rep)
-        state["SF"] = Control_Unit._format_value(int(self.registers.read_sign()), 1, num_rep)
-        state["OF"] = Control_Unit._format_value(int(self.registers.read_overflow()), 1, num_rep)
-        state["PF"] = Control_Unit._format_value(int(self.registers.read_parity()), 1, num_rep)
-        state["TF"] = Control_Unit._format_value(int(self.registers.read_trap_flag()), 1, num_rep)
+        state["ZF"] = Control_Unit._format_value(
+            int(self.registers.read_zero()), 1, num_rep
+        )
+        state["CF"] = Control_Unit._format_value(
+            int(self.registers.read_carry()), 1, num_rep
+        )
+        state["SF"] = Control_Unit._format_value(
+            int(self.registers.read_sign()), 1, num_rep
+        )
+        state["OF"] = Control_Unit._format_value(
+            int(self.registers.read_overflow()), 1, num_rep
+        )
+        state["PF"] = Control_Unit._format_value(
+            int(self.registers.read_parity()), 1, num_rep
+        )
+        state["TF"] = Control_Unit._format_value(
+            int(self.registers.read_trap_flag()), 1, num_rep
+        )
 
         return state
 
-    def _fetch_section_values(self, section: DataSectionInfo | BssSectionInfo, var_names: list[str], num_rep: int) -> list[tuple[str, int | str]]:
+    def _fetch_section_values(
+        self,
+        section: DataSectionInfo | BssSectionInfo,
+        var_names: list[str],
+        num_rep: int,
+    ) -> list[tuple[str, int | str]]:
         """
         Reads every variable in var_names from simulated memory concurrently
         across up to TOTAL_THREADS worker threads, each responsible for an
@@ -545,7 +611,9 @@ class Control_Unit:
         # Never use more threads than there are variables to read.
         thread_count = min(thread_count, len(var_names))
 
-        chunk_size = (len(var_names) + thread_count - 1) // thread_count  # ceil division
+        chunk_size = (
+            len(var_names) + thread_count - 1
+        ) // thread_count  # ceil division
 
         def _fetch_elems(start: int, end: int) -> None:
             for i in range(start, end):
@@ -554,7 +622,7 @@ class Control_Unit:
                 size: int = info["size"]  # type: ignore
                 base_addr: int = info["addresses"][0]  # type: ignore
 
-                data: bytes = self.memory.read_bytes(base_addr, size) # type: ignore
+                data: bytes = self.memory.read_bytes(base_addr, size)  # type: ignore
                 value: int = int.from_bytes(data, byteorder="little", signed=True)
 
                 results[i] = (name, Control_Unit._format_value(value, size, num_rep))

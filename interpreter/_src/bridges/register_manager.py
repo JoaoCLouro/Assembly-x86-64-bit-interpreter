@@ -1,20 +1,33 @@
 import ctypes
 import os
 
-#---------------------
+# ---------------------
 # Registers interface
-#---------------------
+# ---------------------
+
 
 class Registers_Interface:
-
     # Mapping of the sizes of the registers according to their directives
-    SIZE_DIRECTIVES = {
-        'byte': 1, 'word': 2, 'dword': 4, 'qword': 8
-    }
+    SIZE_DIRECTIVES = {"byte": 1, "word": 2, "dword": 4, "qword": 8}
 
     # Parent registers mapping to get indexes
     REGISTERS_MAP = [
-        "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+        "rax",
+        "rbx",
+        "rcx",
+        "rdx",
+        "rsi",
+        "rdi",
+        "rbp",
+        "rsp",
+        "r8",
+        "r9",
+        "r10",
+        "r11",
+        "r12",
+        "r13",
+        "r14",
+        "r15",
     ]
 
     # Sub-registers that don't follow the regular suffix pattern and map straight
@@ -23,7 +36,7 @@ class Registers_Interface:
     EXTENDED_8BIT = {"sil": "rsi", "dil": "rdi", "bpl": "rbp", "spl": "rsp"}
 
     # Class attributes for the library and the pointer to the registers structure in c
-    __slots__ = ["lib", "regs", "_cleaned"]
+    __slots__ = ["_cleaned", "lib", "regs"]
 
     def __init__(self) -> None:
         self._cleaned = False
@@ -42,42 +55,36 @@ class Registers_Interface:
         self.lib.CPURegs_free.argtypes = [ctypes.c_void_p]
 
         self.lib.write_reg.argtypes = [
-            ctypes.c_void_p,      # Pointer to the struct in memory
-            ctypes.c_uint8,                      # reg_id
-            ctypes.c_int64,                     # value to write
-            ctypes.c_uint8,                      # byte size of the reg (1, 2, 4, 8)
-            ctypes.c_uint8                       # is_high
+            ctypes.c_void_p,  # Pointer to the struct in memory
+            ctypes.c_uint8,  # reg_id
+            ctypes.c_int64,  # value to write
+            ctypes.c_uint8,  # byte size of the reg (1, 2, 4, 8)
+            ctypes.c_uint8,  # is_high
         ]
         self.lib.read_8b_reg.argtypes = [
-            ctypes.c_void_p,      # Pointer to the struct in memory
-            ctypes.c_uint8                      # reg_id
+            ctypes.c_void_p,  # Pointer to the struct in memory
+            ctypes.c_uint8,  # reg_id
         ]
         self.lib.read_8b_reg.restype = ctypes.c_uint64
-        self.lib.read_4b_reg.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_uint8
-        ]
+        self.lib.read_4b_reg.argtypes = [ctypes.c_void_p, ctypes.c_uint8]
         self.lib.read_4b_reg.restype = ctypes.c_uint32
-        self.lib.read_2b_reg.argtypes = [
-            ctypes.c_void_p,
-            ctypes.c_uint8
-        ]
+        self.lib.read_2b_reg.argtypes = [ctypes.c_void_p, ctypes.c_uint8]
         self.lib.read_2b_reg.restype = ctypes.c_uint16
         self.lib.read_1b_reg.argtypes = [
             ctypes.c_void_p,
             ctypes.c_uint8,
-            ctypes.c_uint8  # is_high
+            ctypes.c_uint8,  # is_high
         ]
         self.lib.read_1b_reg.restype = ctypes.c_uint8
 
         self.lib.set_reg_sign.argtypes = [
             ctypes.c_void_p,
-            ctypes.c_uint8,                      # reg_id
-            ctypes.c_uint8                        # signed flag (0/1)
+            ctypes.c_uint8,  # reg_id
+            ctypes.c_uint8,  # signed flag (0/1)
         ]
         self.lib.is_signed.argtypes = [
             ctypes.c_void_p,
-            ctypes.c_uint8                         # reg_id
+            ctypes.c_uint8,  # reg_id
         ]
         self.lib.is_signed.restype = ctypes.c_int
 
@@ -97,11 +104,11 @@ class Registers_Interface:
         self.lib.read_parity_flag.restype = ctypes.c_uint8
         self.lib.write_rflags.argtypes = [
             ctypes.c_void_p,
-            ctypes.c_uint32                 # value
+            ctypes.c_uint32,  # value
         ]
         self.lib.exch_rflag.argtypes = [
             ctypes.c_void_p,
-            ctypes.c_uint8                 # flag_id
+            ctypes.c_uint8,  # flag_id
         ]
         self.lib.set_trap_flag.argtypes = [ctypes.c_void_p]
 
@@ -122,9 +129,9 @@ class Registers_Interface:
         self.lib.CPURegs_free(self.regs)
         self._cleaned = True
 
-    #------------------
+    # ------------------
     # Register Writing
-    #------------------
+    # ------------------
 
     def write_reg(self, expression: str, value: int, signed: bool = False) -> None:
         """
@@ -145,14 +152,16 @@ class Registers_Interface:
 
         bits: int = reg_size * 8
         if signed:
-            min_val: int = -(2**(bits - 1))
-            max_val: int = (2**(bits - 1)) - 1
+            min_val: int = -(2 ** (bits - 1))
+            max_val: int = (2 ** (bits - 1)) - 1
         else:
             min_val = 0
             max_val = (2**bits) - 1
 
         if value < min_val or value > max_val:
-            raise ValueError(f"INVALID VALUE {value} TO ATTRIBUTE TO {expression}. OVERFLOW DETECTED.")
+            raise ValueError(
+                f"INVALID VALUE {value} TO ATTRIBUTE TO {expression}. OVERFLOW DETECTED."
+            )
 
         try:
             reg_id: int = self.REGISTERS_MAP.index(reg_info[0])
@@ -162,9 +171,9 @@ class Registers_Interface:
         self.lib.write_reg(self.regs, reg_id, value, reg_size, self.is_high(expression))
         self.lib.set_reg_sign(self.regs, reg_id, 1 if signed else 0)
 
-    #------------------
+    # ------------------
     # Register Reading
-    #------------------
+    # ------------------
 
     def read_reg(self, expression: str) -> int:
         """
@@ -192,13 +201,12 @@ class Registers_Interface:
             bits: int = reg_size * 8
             # Manual 2's complement conversion
             if value & (1 << (bits - 1)):
-                value -= (1 << bits)
+                value -= 1 << bits
         return value
 
-
-# ---------
-# Helpers
-# ---------
+    # ---------
+    # Helpers
+    # ---------
 
     def get_register_parent(self, expression: str) -> tuple[str, int]:
         """
@@ -213,29 +221,29 @@ class Registers_Interface:
 
         # 8-bit registers with no regular suffix pattern (sil, dil, bpl, spl)
         if reg in self.EXTENDED_8BIT:
-            return self.EXTENDED_8BIT[reg], self.SIZE_DIRECTIVES['byte']
+            return self.EXTENDED_8BIT[reg], self.SIZE_DIRECTIVES["byte"]
 
         # 16-bit registers with no regular suffix pattern (si, di, bp, sp)
         if reg in self.EXTENDED_16BIT:
-            return self.EXTENDED_16BIT[reg], self.SIZE_DIRECTIVES['word']
+            return self.EXTENDED_16BIT[reg], self.SIZE_DIRECTIVES["word"]
 
         # 32-bit
-        if reg.startswith('e') or reg.endswith('d'):
-            parent = reg.replace('e', 'r', 1) if reg.startswith('e') else reg[:-1]
-            return parent, self.SIZE_DIRECTIVES['dword']
+        if reg.startswith("e") or reg.endswith("d"):
+            parent = reg.replace("e", "r", 1) if reg.startswith("e") else reg[:-1]
+            return parent, self.SIZE_DIRECTIVES["dword"]
 
         # 16-bit
-        if (len(reg) == 2 and reg.endswith('x')) or reg.endswith('w'):
-            parent = 'r' + reg if reg.endswith('x') else reg[:-1]
-            return parent, self.SIZE_DIRECTIVES['word']
+        if (len(reg) == 2 and reg.endswith("x")) or reg.endswith("w"):
+            parent = "r" + reg if reg.endswith("x") else reg[:-1]
+            return parent, self.SIZE_DIRECTIVES["word"]
 
         # 8-bit
-        if reg.endswith('l') or reg.endswith('h') or reg.endswith('b'):
-            parent = 'r' + reg[:-1] + 'x' if len(reg) == 2 else reg[:-1]
-            return parent, self.SIZE_DIRECTIVES['byte']
+        if reg.endswith("l") or reg.endswith("h") or reg.endswith("b"):
+            parent = "r" + reg[:-1] + "x" if len(reg) == 2 else reg[:-1]
+            return parent, self.SIZE_DIRECTIVES["byte"]
 
         # Fallback for 64-bit
-        return reg, self.SIZE_DIRECTIVES['qword']
+        return reg, self.SIZE_DIRECTIVES["qword"]
 
     def is_high(self, expression: str) -> int:
         """
@@ -246,7 +254,7 @@ class Registers_Interface:
         :return: 1 if the register signals to the second byte of a larger register, 0 if it doesn't
         :rtype: int
         """
-        if len(expression) == 2 and expression[1] == 'h':
+        if len(expression) == 2 and expression[1] == "h":
             return 1
         return 0
 
@@ -263,14 +271,18 @@ class Registers_Interface:
         :return: value of that register
         :rtype: int
         """
-        if size == 8: return self.lib.read_8b_reg(self.regs, reg_id)
-        elif size == 4: return self.lib.read_4b_reg(self.regs, reg_id)
-        elif size == 2: return self.lib.read_2b_reg(self.regs, reg_id)
-        else: return self.lib.read_1b_reg(self.regs, reg_id, is_high)
+        if size == 8:
+            return self.lib.read_8b_reg(self.regs, reg_id)
+        elif size == 4:
+            return self.lib.read_4b_reg(self.regs, reg_id)
+        elif size == 2:
+            return self.lib.read_2b_reg(self.regs, reg_id)
+        else:
+            return self.lib.read_1b_reg(self.regs, reg_id, is_high)
 
-#----------------------------------
-# Flag Reading and Writing Methods
-#----------------------------------
+    # ----------------------------------
+    # Flag Reading and Writing Methods
+    # ----------------------------------
 
     # TO IMPLEMENT
     ## CURRENT PLAN IT TO ADD A STEP VERIFICATION STEP THAT VERIFIES ALL FLAGS IN THE CONTROL UNIT AND THEN CALLS THE APPROPRIATE FUNCTION IN THE C STRUCTURE TO UPDATE THE FLAGS IN THE CPU STATE STRUCTURE.
@@ -324,7 +336,6 @@ class Registers_Interface:
         """
         return True if int(self.lib.read_parity_flag(self.regs)) == 1 else False
 
-
     def exch_flag(self, flag_id: int) -> None:
         """
         Exchanges the value of a given flag according to its id on the flag register
@@ -333,7 +344,7 @@ class Registers_Interface:
         :type: int
         :raises ValueError: if the flag_id given is invalid
         """
-        if (flag_id < 0 or flag_id > 31):
+        if flag_id < 0 or flag_id > 31:
             raise ValueError
         f_id: ctypes.c_uint8 = ctypes.c_uint8(flag_id)
         self.lib.exch_rflag(self.regs, f_id)
@@ -343,9 +354,9 @@ class Registers_Interface:
         v: ctypes.c_uint32 = ctypes.c_uint32(value)
         self.lib.write_rflags(self.regs, v)
 
-    #----------------------
+    # ----------------------
     # String representation
-    #----------------------
+    # ----------------------
 
     def __str__(self) -> str:
         """

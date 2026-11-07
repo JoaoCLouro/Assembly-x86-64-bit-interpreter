@@ -4,6 +4,7 @@ Integration test: basic ALU operations (add, sub, xor, and, or, inc, dec).
 See tests/asm_files/alu_basic.asm for the exact instruction sequence and
 the expected values below.
 """
+
 import pytest
 
 from conftest import LIBS_PRESENT
@@ -24,12 +25,12 @@ def test_alu_basic_register_values(run_asm):
     assert regs["rax"] == 60
     assert regs["rdi"] == 0
 
-    assert regs["rbx"] == 4      # 10 - 6
-    assert regs["rcx"] == 12     # 10 XOR 6
-    assert regs["rdx"] == 2      # 10 AND 6
-    assert regs["r8"] == 14      # 10 OR 6
-    assert regs["r9"] == 6       # 5 + 1 (inc)
-    assert regs["r10"] == 4      # 5 - 1 (dec)
+    assert regs["rbx"] == 4  # 10 - 6
+    assert regs["rcx"] == 12  # 10 XOR 6
+    assert regs["rdx"] == 2  # 10 AND 6
+    assert regs["r8"] == 14  # 10 OR 6
+    assert regs["r9"] == 6  # 5 + 1 (inc)
+    assert regs["r10"] == 4  # 5 - 1 (dec)
 
 
 def test_alu_basic_exits_cleanly(run_asm):

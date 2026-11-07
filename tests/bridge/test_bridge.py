@@ -25,25 +25,27 @@ This file has two halves, and they run under different conditions:
 
 Run with: pytest tests/bridge/test_integration.py -v
 """
+
+import ctypes
 import os
 import sys
-import ctypes
 from unittest.mock import patch
 
 import pytest
 
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 _BRIDGES_DIR = os.path.join(_PROJECT_ROOT, "bridges")
 if _BRIDGES_DIR not in sys.path:
     sys.path.insert(0, _BRIDGES_DIR)
 
-from interpreter._src.bridges.register_manager import Registers_Interface  # noqa: E402
-from interpreter._src.bridges.data_memory import Data_Memory  # noqa: E402
+from interpreter._src.bridges.data_memory import Data_Memory
+from interpreter._src.bridges.register_manager import Registers_Interface
 
-_LIBS_PRESENT = (
-    os.path.exists(os.path.join(_PROJECT_ROOT, "lib", "libreg.so"))
-    and os.path.exists(os.path.join(_PROJECT_ROOT, "lib", "libmmu.so"))
-)
+_LIBS_PRESENT = os.path.exists(
+    os.path.join(_PROJECT_ROOT, "lib", "libreg.so")
+) and os.path.exists(os.path.join(_PROJECT_ROOT, "lib", "libmmu.so"))
 _needs_real_libs = pytest.mark.skipif(
     not _LIBS_PRESENT,
     reason="lib/libreg.so and lib/libmmu.so not built yet -- run `make` at the project root first",
@@ -54,6 +56,7 @@ _needs_real_libs = pytest.mark.skipif(
 # PART 1 -- fake C model, property and corner-case tests (always run)
 # ===========================================================================
 
+
 class FakeRegLib:
     """
     Minimal, faithful-enough model of libreg.so:
@@ -63,6 +66,7 @@ class FakeRegLib:
       else in the register is disturbed.
     - Sign flags are tracked per register.
     """
+
     def __init__(self):
         self._regs = [bytearray(8) for _ in range(16)]
         self._signed = [0] * 16
@@ -75,14 +79,16 @@ class FakeRegLib:
         pass
 
     def write_reg(self, _regs, reg_id, value, size, is_high):
-        raw = value & ((1 << (8 * size)) - 1)  # low `size` bytes, two's-complement pattern
+        raw = value & (
+            (1 << (8 * size)) - 1
+        )  # low `size` bytes, two's-complement pattern
         chunk = raw.to_bytes(size, "little")
         start = 1 if (size == 1 and is_high) else 0
-        self._regs[reg_id][start:start + size] = chunk
+        self._regs[reg_id][start : start + size] = chunk
 
     def _read(self, reg_id, size, is_high=0):
         start = 1 if (size == 1 and is_high) else 0
-        return int.from_bytes(self._regs[reg_id][start:start + size], "little")
+        return int.from_bytes(self._regs[reg_id][start : start + size], "little")
 
     def read_8b_reg(self, _regs, reg_id):
         return self._read(reg_id, 8)
@@ -109,13 +115,15 @@ class FakeRegLib:
         self._rflags = value
 
     def exch_rflag(self, _regs, flag_id):
-        self._rflags ^= (1 << int(flag_id.value if hasattr(flag_id, "value") else flag_id))
+        self._rflags ^= 1 << int(
+            flag_id.value if hasattr(flag_id, "value") else flag_id
+        )
 
     def read_trap_flag(self, _regs):
         return (self._rflags >> 8) & 1
 
     def set_trap_flag(self, _regs):
-        self._rflags ^= (1 << 8)
+        self._rflags ^= 1 << 8
 
     def read_carry_flag(self, _regs):
         return self._rflags & 1
@@ -144,6 +152,7 @@ class _FnWrapper:
     plain ctypes scalar values (c_uint8(5) -> 5) the way a real ctypes FFI
     call would -- a raw Python function call doesn't do that unwrapping
     automatically, but the actual C boundary always would."""
+
     def __init__(self, fn):
         self._fn = fn
         self.argtypes = None
@@ -163,10 +172,25 @@ class _FnWrapper:
 
 def _configure_fake(lib):
     for fn_name in [
-        "CPURegs_create", "CPURegs_free", "write_reg", "read_8b_reg", "read_4b_reg",
-        "read_2b_reg", "read_1b_reg", "set_reg_sign", "is_signed", "read_rflags",
-        "read_trap_flag", "read_carry_flag", "read_zero_flag", "read_sign_flag",
-        "read_overflow_flag", "read_parity_flag", "write_rflags", "exch_rflag", "set_trap_flag",
+        "CPURegs_create",
+        "CPURegs_free",
+        "write_reg",
+        "read_8b_reg",
+        "read_4b_reg",
+        "read_2b_reg",
+        "read_1b_reg",
+        "set_reg_sign",
+        "is_signed",
+        "read_rflags",
+        "read_trap_flag",
+        "read_carry_flag",
+        "read_zero_flag",
+        "read_sign_flag",
+        "read_overflow_flag",
+        "read_parity_flag",
+        "write_rflags",
+        "exch_rflag",
+        "set_trap_flag",
     ]:
         setattr(lib, fn_name, _FnWrapper(getattr(lib, fn_name)))
     return lib
@@ -181,6 +205,7 @@ def fake_regs():
 
 class FakeMMULib:
     """Faithful-enough model of libmmu.so: a flat dict of addr -> byte."""
+
     def __init__(self):
         self._mem = {}
 
@@ -221,16 +246,24 @@ def fake_mem(fake_regs):
 
 # --- Property: write then read gives back the same value ---
 
+
 class TestRoundTripProperty:
-    @pytest.mark.parametrize("reg,bits,signed", [
-        ("al", 8, False), ("al", 8, True),
-        ("ax", 16, False), ("ax", 16, True),
-        ("eax", 32, False), ("eax", 32, True),
-        ("rax", 64, False), ("rax", 64, True),
-    ])
+    @pytest.mark.parametrize(
+        "reg,bits,signed",
+        [
+            ("al", 8, False),
+            ("al", 8, True),
+            ("ax", 16, False),
+            ("ax", 16, True),
+            ("eax", 32, False),
+            ("eax", 32, True),
+            ("rax", 64, False),
+            ("rax", 64, True),
+        ],
+    )
     def test_round_trip_across_full_range_samples(self, fake_regs, reg, bits, signed):
         if signed:
-            lo, hi = -(2**(bits - 1)), (2**(bits - 1)) - 1
+            lo, hi = -(2 ** (bits - 1)), (2 ** (bits - 1)) - 1
         else:
             lo, hi = 0, (2**bits) - 1
         for value in {lo, hi, lo + 1, hi - 1, 0 if lo <= 0 <= hi else lo}:
@@ -249,6 +282,7 @@ class TestRoundTripProperty:
 
 
 # --- Property: writing a sub-register doesn't disturb unrelated bytes ---
+
 
 class TestByteIndependence:
     def test_writing_al_preserves_rest_of_rax(self, fake_regs):
@@ -289,32 +323,43 @@ class TestByteIndependence:
 
 # --- Corner cases: bounds checking ---
 
+
 class TestBoundsCornerCases:
-    @pytest.mark.parametrize("reg,bits", [("al", 8), ("ax", 16), ("eax", 32), ("rax", 64)])
+    @pytest.mark.parametrize(
+        "reg,bits", [("al", 8), ("ax", 16), ("eax", 32), ("rax", 64)]
+    )
     def test_unsigned_min_and_max_accepted(self, fake_regs, reg, bits):
         fake_regs.write_reg(reg, 0, signed=False)
         fake_regs.write_reg(reg, (2**bits) - 1, signed=False)
 
-    @pytest.mark.parametrize("reg,bits", [("al", 8), ("ax", 16), ("eax", 32), ("rax", 64)])
+    @pytest.mark.parametrize(
+        "reg,bits", [("al", 8), ("ax", 16), ("eax", 32), ("rax", 64)]
+    )
     def test_unsigned_just_out_of_range_rejected(self, fake_regs, reg, bits):
         with pytest.raises(ValueError):
             fake_regs.write_reg(reg, -1, signed=False)
         with pytest.raises(ValueError):
             fake_regs.write_reg(reg, 2**bits, signed=False)
 
-    @pytest.mark.parametrize("reg,bits", [("al", 8), ("ax", 16), ("eax", 32), ("rax", 64)])
+    @pytest.mark.parametrize(
+        "reg,bits", [("al", 8), ("ax", 16), ("eax", 32), ("rax", 64)]
+    )
     def test_signed_min_and_max_accepted(self, fake_regs, reg, bits):
-        fake_regs.write_reg(reg, -(2**(bits - 1)), signed=True)
-        fake_regs.write_reg(reg, (2**(bits - 1)) - 1, signed=True)
+        fake_regs.write_reg(reg, -(2 ** (bits - 1)), signed=True)
+        fake_regs.write_reg(reg, (2 ** (bits - 1)) - 1, signed=True)
 
-    @pytest.mark.parametrize("reg,bits", [("al", 8), ("ax", 16), ("eax", 32), ("rax", 64)])
+    @pytest.mark.parametrize(
+        "reg,bits", [("al", 8), ("ax", 16), ("eax", 32), ("rax", 64)]
+    )
     def test_signed_just_out_of_range_rejected(self, fake_regs, reg, bits):
         with pytest.raises(ValueError):
-            fake_regs.write_reg(reg, -(2**(bits - 1)) - 1, signed=True)
+            fake_regs.write_reg(reg, -(2 ** (bits - 1)) - 1, signed=True)
         with pytest.raises(ValueError):
-            fake_regs.write_reg(reg, 2**(bits - 1), signed=True)
+            fake_regs.write_reg(reg, 2 ** (bits - 1), signed=True)
 
-    @pytest.mark.parametrize("bad_name", ["", "notareg", "rax1", "r17", "AX ", " al", "rax\n"])
+    @pytest.mark.parametrize(
+        "bad_name", ["", "notareg", "rax1", "r17", "AX ", " al", "rax\n"]
+    )
     def test_garbage_register_names_rejected(self, fake_regs, bad_name):
         with pytest.raises(ValueError):
             fake_regs.write_reg(bad_name, 0)
@@ -329,6 +374,7 @@ class TestBoundsCornerCases:
 
 # --- Corner cases: sign extension at the boundary ---
 
+
 class TestSignExtensionCornerCases:
     def test_msb_set_is_negative_when_signed(self, fake_regs):
         fake_regs.write_reg("al", 0x80, signed=False)  # 128 unsigned == -128 signed
@@ -341,6 +387,7 @@ class TestSignExtensionCornerCases:
 
 
 # --- Corner cases: flags ---
+
 
 class TestFlagCornerCases:
     @pytest.mark.parametrize("flag_id", [0, 31])
@@ -364,10 +411,11 @@ class TestFlagCornerCases:
 
 # --- Corner cases: memory ---
 
+
 class TestMemoryCornerCases:
     def test_write_then_read_exact_bytes(self, fake_mem):
-        fake_mem.write_bytes(0x1000, b"\xAA\xBB\xCC\xDD", 4)
-        assert fake_mem.read_bytes(0x1000, 4) == b"\xAA\xBB\xCC\xDD"
+        fake_mem.write_bytes(0x1000, b"\xaa\xbb\xcc\xdd", 4)
+        assert fake_mem.read_bytes(0x1000, 4) == b"\xaa\xbb\xcc\xdd"
 
     def test_reading_never_written_address_faults(self, fake_mem):
         with pytest.raises(MemoryError):
@@ -375,8 +423,8 @@ class TestMemoryCornerCases:
 
     def test_overlapping_writes_take_the_latest_value(self, fake_mem):
         fake_mem.write_bytes(0x2000, b"\x01\x02\x03\x04", 4)
-        fake_mem.write_bytes(0x2001, b"\xFF\xFF", 2)
-        assert fake_mem.read_bytes(0x2000, 4) == b"\x01\xFF\xFF\x04"
+        fake_mem.write_bytes(0x2001, b"\xff\xff", 2)
+        assert fake_mem.read_bytes(0x2000, 4) == b"\x01\xff\xff\x04"
 
     def test_zero_data_gets_padded_to_full_size(self, fake_mem):
         fake_mem.write_bytes(0x3000, b"", 4)
@@ -389,6 +437,7 @@ class TestMemoryCornerCases:
 
 # --- Corner cases: the stack, at its exact boundaries ---
 
+
 class TestStackBoundaryCornerCases:
     def test_push_at_the_very_top_of_the_stack(self, fake_mem, fake_regs):
         fake_regs.write_reg("rsp", Data_Memory.STACK_START)
@@ -397,7 +446,9 @@ class TestStackBoundaryCornerCases:
 
     def test_pop_right_back_to_stack_start_then_underflows(self, fake_mem, fake_regs):
         fake_regs.write_reg("rsp", Data_Memory.STACK_START)
-        fake_mem.push(b"\x01" * 8)  # rsp now at STACK_START - 8, with something actually mapped there
+        fake_mem.push(
+            b"\x01" * 8
+        )  # rsp now at STACK_START - 8, with something actually mapped there
         fake_mem.pop()
         assert fake_regs.read_reg("rsp") == Data_Memory.STACK_START
         with pytest.raises(MemoryError):
@@ -427,7 +478,9 @@ class TestStackBoundaryCornerCases:
 
     def test_push_right_at_stack_limit_boundary(self, fake_mem, fake_regs):
         fake_regs.write_reg("rsp", Data_Memory.STACK_LIMIT + 8)
-        fake_mem.push(b"\x01" * 8)  # lands exactly on STACK_LIMIT -- should still be allowed
+        fake_mem.push(
+            b"\x01" * 8
+        )  # lands exactly on STACK_LIMIT -- should still be allowed
         assert fake_regs.read_reg("rsp") == Data_Memory.STACK_LIMIT
 
     def test_push_one_byte_past_stack_limit_overflows(self, fake_mem, fake_regs):
@@ -440,6 +493,7 @@ class TestStackBoundaryCornerCases:
 # PART 2 -- real compiled library, integration tests
 # (skipped until lib/libreg.so and lib/libmmu.so are built)
 # ===========================================================================
+
 
 @pytest.fixture
 def regs():
@@ -533,8 +587,8 @@ class TestMemoryRoundTrip:
         base = 0x600000
         for offset in range(0, 4096, 512):
             addr = base + offset
-            mem.write_bytes(addr, b"\xAB\xCD", 2)
-            assert mem.read_bytes(addr, 2) == b"\xAB\xCD", f"failed at offset {offset}"
+            mem.write_bytes(addr, b"\xab\xcd", 2)
+            assert mem.read_bytes(addr, 2) == b"\xab\xcd", f"failed at offset {offset}"
 
     def test_write_crossing_a_page_boundary(self, mem):
         """4 bytes straddling two pages -- exercises write_block's/read_block's
@@ -585,8 +639,24 @@ class TestRegisterCrossTalk:
     other."""
 
     def test_writing_one_register_does_not_affect_its_neighbors(self, regs):
-        names = ["rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp",
-                 "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"]
+        names = [
+            "rax",
+            "rbx",
+            "rcx",
+            "rdx",
+            "rsi",
+            "rdi",
+            "rbp",
+            "rsp",
+            "r8",
+            "r9",
+            "r10",
+            "r11",
+            "r12",
+            "r13",
+            "r14",
+            "r15",
+        ]
         for i, name in enumerate(names):
             regs.write_reg(name, i + 1)
         for i, name in enumerate(names):

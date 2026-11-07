@@ -18,6 +18,7 @@ program_cache/
 .venv/
 .pytest_cache/
 
+
 # OS specific
 .DS_Store
 
@@ -27,6 +28,12 @@ program_cache/
 
 # pip specific
 *.egg-info/
+
+# uv specific
+uv.lock
+
+# ruff
+.ruff_cache/
 
 # Releases
 dist

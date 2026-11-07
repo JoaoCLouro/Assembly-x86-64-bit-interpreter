@@ -20,8 +20,10 @@ no longer needed once the editable install is in place.
 If you ever relocate the whole repo to a new path, just re-run
 `pip install -e .` once from the new location.
 """
+
 import os
 import sys
+
 
 def _find_project_root(start_dir: str) -> str:
     current = start_dir

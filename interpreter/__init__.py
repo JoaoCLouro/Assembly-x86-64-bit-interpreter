@@ -1,6 +1,6 @@
 # interpreter/__init__.py
 
-from .interpreter import Interpreter_x86 as Interpreter
 from .exit_codes import ExitCode
+from .interpreter import Interpreter_x86 as Interpreter
 
-__all__ = ["Interpreter", "ExitCode"]
+__all__ = ["ExitCode", "Interpreter"]

@@ -10,6 +10,7 @@ ImportError. Root discovery is duplicated here (same walk-up-to-
 pyproject.toml logic as the root conftest) rather than importing it, to
 sidestep the name collision entirely.
 """
+
 import json
 import os
 import subprocess
@@ -69,10 +70,13 @@ class AsmResult:
 
     def __init__(self, returncode: int, stdout: str, stderr: str):
         import importlib.util
+
         _exit_codes_path = os.path.join(PROJECT_ROOT, "interpreter", "exit_codes.py")
-        _spec = importlib.util.spec_from_file_location("_exit_codes_direct", _exit_codes_path)
-        _exit_codes_module = importlib.util.module_from_spec(_spec) # type: ignore
-        _spec.loader.exec_module(_exit_codes_module) # type: ignore
+        _spec = importlib.util.spec_from_file_location(
+            "_exit_codes_direct", _exit_codes_path
+        )
+        _exit_codes_module = importlib.util.module_from_spec(_spec)  # type: ignore
+        _spec.loader.exec_module(_exit_codes_module)  # type: ignore
         ExitCode = _exit_codes_module.ExitCode
 
         self.returncode = returncode
@@ -89,7 +93,7 @@ class AsmResult:
         idx = stdout.find(exit_marker)
         if idx != -1:
             self.program_output = stdout[:idx]
-            rest = stdout[idx + len(exit_marker):].strip().splitlines()[0]
+            rest = stdout[idx + len(exit_marker) :].strip().splitlines()[0]
             if rest == "None":
                 self.exit_code = None
             else:
@@ -103,7 +107,7 @@ class AsmResult:
         if idx != -1:
             if self.exit_code is None:
                 self.program_output = stdout[:idx]
-            json_part = stdout[idx + len(state_marker):].strip().splitlines()[0]
+            json_part = stdout[idx + len(state_marker) :].strip().splitlines()[0]
             self.state = json.loads(json_part)
 
     @property

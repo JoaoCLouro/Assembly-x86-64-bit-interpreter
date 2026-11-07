@@ -13,6 +13,7 @@ into set_registers_ref/set_table_ref without touching them itself.
 
 Run with: pytest tests/FUs/test_alu.py -v
 """
+
 import ctypes
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -23,7 +24,9 @@ from interpreter._src.FUs.alu import ALU, ALU_OPCODES
 
 
 def make_op(address=0, type_=0, size=4, is_high=0, is_signed=0, valid=True):
-    op = SimpleNamespace(address=address, type=type_, size=size, is_high=is_high, is_signed=is_signed)
+    op = SimpleNamespace(
+        address=address, type=type_, size=size, is_high=is_high, is_signed=is_signed
+    )
     op.is_valid = lambda: valid
     return op
 
@@ -49,7 +52,9 @@ def alu(mock_registers, mock_memory):
         mock_lib = MagicMock()
         mock_lib.create_operand_state.return_value = ctypes.c_void_p(0xCAFEBABE)
         mock_cdll.return_value = mock_lib
-        instance = ALU(registers=mock_registers, memory=mock_memory, libops_path="fake.so")
+        instance = ALU(
+            registers=mock_registers, memory=mock_memory, libops_path="fake.so"
+        )
         yield instance
 
 
@@ -57,15 +62,20 @@ def alu(mock_registers, mock_memory):
 # Construction
 # ---------------------------------------------------------------------------
 
+
 class TestConstruction:
-    def test_creates_operand_state_and_wires_registers_and_memory(self, mock_registers, mock_memory):
+    def test_creates_operand_state_and_wires_registers_and_memory(
+        self, mock_registers, mock_memory
+    ):
         with patch("ctypes.CDLL") as mock_cdll:
             mock_lib = MagicMock()
             state = ctypes.c_void_p(0x1234)
             mock_lib.create_operand_state.return_value = state
             mock_cdll.return_value = mock_lib
 
-            instance = ALU(registers=mock_registers, memory=mock_memory, libops_path="fake.so")
+            instance = ALU(
+                registers=mock_registers, memory=mock_memory, libops_path="fake.so"
+            )
 
             mock_lib.set_registers_ref.assert_called_once()
             assert mock_lib.set_registers_ref.call_args[0][0] == state
@@ -91,6 +101,7 @@ class TestConstruction:
 # load_values
 # ---------------------------------------------------------------------------
 
+
 class TestLoadValues:
     def test_clean_called_before_set_instruction(self, alu):
         alu.load_values("add", make_op(valid=False), make_op(valid=False))
@@ -108,7 +119,8 @@ class TestLoadValues:
         alu.load_values("add", op1, make_op(valid=False))
 
         alu.lib.set_operand_info.assert_called_once_with(
-            alu.state, b"op1",
+            alu.state,
+            b"op1",
             0x1000,
             8,  # size
             2,  # op_type
@@ -139,6 +151,7 @@ class TestLoadValues:
 # execute
 # ---------------------------------------------------------------------------
 
+
 class TestExecute:
     def test_execute_calls_dispatch_with_state(self, alu):
         alu.execute()
@@ -148,6 +161,7 @@ class TestExecute:
 # ---------------------------------------------------------------------------
 # __del__
 # ---------------------------------------------------------------------------
+
 
 class TestDel:
     def test_del_frees_operand_state(self, alu):
@@ -159,6 +173,7 @@ class TestDel:
 # ---------------------------------------------------------------------------
 # get_opcode
 # ---------------------------------------------------------------------------
+
 
 class TestGetOpcode:
     def test_known_instruction_returns_table_index(self):

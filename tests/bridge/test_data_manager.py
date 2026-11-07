@@ -15,19 +15,22 @@ internals (those have their own test file).
 
 Run with: pytest tests/bridge/test_data_memory.py -v
 """
+
 import os
 import sys
-import ctypes
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-_BRIDGES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "bridges")
+_BRIDGES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "bridges",
+)
 if _BRIDGES_DIR not in sys.path:
     sys.path.insert(0, _BRIDGES_DIR)
 
-from interpreter._src.bridges.register_manager import Registers_Interface  # noqa: E402
-from interpreter._src.bridges.data_memory import Data_Memory  # noqa: E402
+from interpreter._src.bridges.data_memory import Data_Memory
+from interpreter._src.bridges.register_manager import Registers_Interface
 
 
 @pytest.fixture
@@ -53,6 +56,7 @@ def mem(mock_registers):
 # Construction
 # ---------------------------------------------------------------------------
 
+
 class TestConstruction:
     def test_loads_from_project_root_lib_dir(self, mock_registers):
         with patch("ctypes.CDLL") as mock_cdll:
@@ -63,7 +67,10 @@ class TestConstruction:
 
             called_path = mock_cdll.call_args[0][0]
             assert called_path.endswith(os.path.join("lib", "libmmu.so"))
-            assert os.path.basename(os.path.dirname(os.path.dirname(called_path))) != "bridges"
+            assert (
+                os.path.basename(os.path.dirname(os.path.dirname(called_path)))
+                != "bridges"
+            )
 
     def test_raises_if_table_init_fails(self, mock_registers):
         with patch("ctypes.CDLL") as mock_cdll:
@@ -77,6 +84,7 @@ class TestConstruction:
 # ---------------------------------------------------------------------------
 # Byte-level read/write
 # ---------------------------------------------------------------------------
+
 
 class TestReadWriteBytes:
     def test_read_bytes_returns_data_from_buffer(self, mem):
@@ -126,6 +134,7 @@ class TestReadWriteBytes:
 # Data validation helpers
 # ---------------------------------------------------------------------------
 
+
 class TestDataHelpers:
     def test_valid_data_length(self, mem):
         assert mem.valid_data_length(b"\x01\x02", 2) is True
@@ -142,19 +151,24 @@ class TestDataHelpers:
 # Stack operations
 # ---------------------------------------------------------------------------
 
+
 class TestPush:
-    def test_value_over_8_bytes_raises_regardless_of_stack_state(self, mem, mock_registers):
+    def test_value_over_8_bytes_raises_regardless_of_stack_state(
+        self, mem, mock_registers
+    ):
         with pytest.raises(ValueError):
             mem.push(b"\x01" * 9)
         mock_registers.read_reg.assert_not_called()
 
     def test_overflow_raises(self, mem, mock_registers):
-        mock_registers.read_reg.return_value = Data_Memory.STACK_LIMIT + 4  # rsp - 8 < STACK_LIMIT
+        mock_registers.read_reg.return_value = (
+            Data_Memory.STACK_LIMIT + 4
+        )  # rsp - 8 < STACK_LIMIT
         with pytest.raises(MemoryError):
             mem.push(b"\x01" * 8)
 
     def test_normal_push_updates_rsp_and_writes_memory(self, mem, mock_registers):
-        rsp = 0x7fffffffd000
+        rsp = 0x7FFFFFFFD000
         mock_registers.read_reg.return_value = rsp
 
         mem.push(b"\x01\x02\x03\x04\x05\x06\x07\x08")
@@ -165,7 +179,7 @@ class TestPush:
         assert bytes(write_args[2]) == b"\x01\x02\x03\x04\x05\x06\x07\x08"
 
     def test_short_value_padded_before_push(self, mem, mock_registers):
-        rsp = 0x7fffffffd000
+        rsp = 0x7FFFFFFFD000
         mock_registers.read_reg.return_value = rsp
 
         mem.push(b"\x01\x02")
@@ -181,7 +195,7 @@ class TestPop:
             mem.pop()
 
     def test_normal_pop_returns_value_and_updates_rsp(self, mem, mock_registers):
-        rsp = 0x7fffffffd000
+        rsp = 0x7FFFFFFFD000
         mock_registers.read_reg.return_value = rsp
         expected = bytes([1, 2, 3, 4, 5, 6, 7, 8])
 
@@ -198,7 +212,7 @@ class TestPop:
         mock_registers.write_reg.assert_called_once_with("rsp", rsp + 8)
 
     def test_pop_clears_the_slot(self, mem, mock_registers):
-        rsp = 0x7fffffffd000
+        rsp = 0x7FFFFFFFD000
         mock_registers.read_reg.return_value = rsp
         mem.lib.read_mem.return_value = 0
 

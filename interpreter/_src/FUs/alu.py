@@ -1,23 +1,27 @@
 import ctypes
 import os
 
-from ..bridges.register_manager import Registers_Interface
-from ..bridges.data_memory import Data_Memory
-
-from .common_classes import Info, CPURegs, Table
-
-from ..parsing.patter_matching_helpers import INSTRUCTIONS
-from ..parsing.instruction_parser import Operand as OP
 from conftest import SRC_ROOT
 
+from ..bridges.data_memory import Data_Memory
+from ..bridges.register_manager import Registers_Interface
+from ..parsing.instruction_parser import Operand as OP
+from ..parsing.patter_matching_helpers import INSTRUCTIONS
+from .common_classes import CPURegs, Info, Table
 
 # Lookup opcodes table
-ALU_OPCODES = {name.lower(): index for index, name in enumerate(INSTRUCTIONS['alu'])}
-class ALU:  
+ALU_OPCODES = {name.lower(): index for index, name in enumerate(INSTRUCTIONS["alu"])}
 
+
+class ALU:
     __slots__ = ["lib", "state"]
 
-    def __init__(self, registers: Registers_Interface, memory: Data_Memory, libops_path: str = os.path.join(SRC_ROOT, "lib/liboperations.so")) -> None:
+    def __init__(
+        self,
+        registers: Registers_Interface,
+        memory: Data_Memory,
+        libops_path: str = os.path.join(SRC_ROOT, "lib/liboperations.so"),
+    ) -> None:
         self.lib = ctypes.CDLL(os.path.abspath(libops_path))
 
         self.lib.create_operand_state.argtypes = []
@@ -26,7 +30,10 @@ class ALU:
         self.lib.free_operand_state.argtypes = [ctypes.POINTER(Info)]
         self.lib.free_operand_state.restype = None
 
-        self.lib.set_registers_ref.argtypes = [ctypes.POINTER(Info), ctypes.POINTER(CPURegs)]
+        self.lib.set_registers_ref.argtypes = [
+            ctypes.POINTER(Info),
+            ctypes.POINTER(CPURegs),
+        ]
         self.lib.set_registers_ref.restype = None
 
         self.lib.set_table_ref.argtypes = [ctypes.POINTER(Info), ctypes.POINTER(Table)]
@@ -35,12 +42,12 @@ class ALU:
         # Matches operations.h: (Info*, operand, address, size, op_type, is_high, is_signed)
         self.lib.set_operand_info.argtypes = [
             ctypes.POINTER(Info),  # Info*
-            ctypes.c_char_p,       # operand slot ("op1" / "op2")
-            ctypes.c_longlong,     # address
-            ctypes.c_uint8,        # size
-            ctypes.c_uint8,        # op_type (OpType enum)
-            ctypes.c_uint8,        # is_high
-            ctypes.c_uint8,        # is_signed
+            ctypes.c_char_p,  # operand slot ("op1" / "op2")
+            ctypes.c_longlong,  # address
+            ctypes.c_uint8,  # size
+            ctypes.c_uint8,  # op_type (OpType enum)
+            ctypes.c_uint8,  # is_high
+            ctypes.c_uint8,  # is_signed
         ]
         self.lib.set_operand_info.restype = None
 
@@ -56,9 +63,12 @@ class ALU:
 
         # Prepares all needed info
         self.state = self.lib.create_operand_state()
-        self.lib.set_registers_ref(self.state, ctypes.cast(registers.regs, ctypes.POINTER(CPURegs)))
-        self.lib.set_table_ref(self.state, ctypes.cast(memory.table, ctypes.POINTER(Table)))
-
+        self.lib.set_registers_ref(
+            self.state, ctypes.cast(registers.regs, ctypes.POINTER(CPURegs))
+        )
+        self.lib.set_table_ref(
+            self.state, ctypes.cast(memory.table, ctypes.POINTER(Table))
+        )
 
     def __del__(self) -> None:
         # Best-effort: free the C-side struct once this ALU is collected.
@@ -82,13 +92,13 @@ class ALU:
 
         if op1 and op1.is_valid():
             self.lib.set_operand_info(
-                self.state, 
+                self.state,
                 b"op1",
                 op1.address,
                 op1.size,
                 int(op1.type),
                 getattr(op1, "is_high", 0),
-                getattr(op1, "is_signed", 0)
+                getattr(op1, "is_signed", 0),
             )
 
         if op2 and op2.is_valid():
@@ -99,13 +109,13 @@ class ALU:
                 op2.size,
                 int(op2.type),
                 getattr(op2, "is_high", 0),
-                getattr(op2, "is_signed", 0)
+                getattr(op2, "is_signed", 0),
             )
 
     def execute(self) -> None:
         """
         Executes the instruction loaded in the c structure.
-        
+
         :raises: ZeroDivisionError if the dispatcher catches any zero division error
         """
         exit_code = self.lib.dispatch(self.state)
@@ -113,9 +123,6 @@ class ALU:
             raise ZeroDivisionError
         elif exit_code == 2:
             raise NameError
-        
-
-
 
     @staticmethod
     def get_opcode(instruction: str) -> int:

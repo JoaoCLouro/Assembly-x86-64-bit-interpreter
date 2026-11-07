@@ -102,12 +102,12 @@ pip install dist/cpu_simulator-0.3.2-py3-none-any.whl
 ```
 
 
-## Quick Start & Usage 
+## Quick Start & Usage
 
 ### CLI Usage
 
 Execute assembly files using the `main.py` runner or installed package entry point:
-```bash 
+```bash
 # Direct runner
 python main.py <path-to-your-asm-file>
 
@@ -321,21 +321,21 @@ pytest tests/ -v
 ## **Implementation and Decisions**
 
 Interpreting a `.asm` file happens in two phases:
- 
+
 **1. Mapping (`parsing/segment_mapper.py`)**
 Reads the assembly file once, before anything executes. It walks each
 section, maps variables and instructions into simulated memory, builds the
 label/symbol table, and validates that the file is well-formed — checking
 syntax and instruction structure so that malformed input is caught up front
 rather than failing mid-execution.
- 
+
 **2. Execution (`parsing/control_unit.py`)**
 The actual execution loop. Starting from the beginning of the program, it
 interprets one instruction at a time, running until it hits an exit call (or
 the last executable instruction). For each instruction, it resolves operands,
 dispatches to the matching Functional Unit, and lets the C side carry out the
 real side effects — register writes, memory writes, flag updates — through
-the bridge layer.  
+the bridge layer.
 
 **Functional Units (`FUs/`)**
 Each instruction (`add`, `mov`, `cmp`, `xor`, ...) has a corresponding FU

@@ -1,6 +1,6 @@
 # Storage
 
-A static-method utility class for reading and writing JSON files with one primary functionality: 
+A static-method utility class for reading and writing JSON files with one primary functionality:
 
 * **General-purpose JSON storage** (`save_file`, `save_file_dictionary`,
    `load_file`, `load_file_lines`, `convert_to_json`) — these always operate

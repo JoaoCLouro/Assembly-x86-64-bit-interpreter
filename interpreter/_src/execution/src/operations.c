@@ -34,16 +34,16 @@ struct Info {
 // --------------------------------------------------------------------------------
 static void set_operands_values(Info* s);
 static unsigned long long get_operand_value(Info* s, Operand* op);
-static void exec_cmp(Info *s); 
-static void exec_add(Info *s); 
+static void exec_cmp(Info *s);
+static void exec_add(Info *s);
 static void exec_adc(Info *s);
-static void exec_sub(Info *s); 
-static void exec_sbb(Info *s); 
+static void exec_sub(Info *s);
+static void exec_sbb(Info *s);
 static void exec_inc(Info *s);
-static void exec_dec(Info *s); 
+static void exec_dec(Info *s);
 static void exec_and(Info *s); static void exec_or(Info *s);
-static void exec_xor(Info *s); 
-static void exec_not(Info *s); 
+static void exec_xor(Info *s);
+static void exec_not(Info *s);
 static void exec_neg(Info *s);
 static void exec_xchg(Info *s);
 static void exec_mul(Info *s);
@@ -208,7 +208,7 @@ void clean(Info *s) {
 
 uint8_t dispatch(Info *s)
 {
-    Opcode op = s->opcode; 
+    Opcode op = s->opcode;
 
     // Failsafe verification. Python calls should always make sure this is not triggered
     if (op < 0 || op >= OP_COUNT || dispatch_table[op] == NULL)
@@ -217,7 +217,7 @@ uint8_t dispatch(Info *s)
         clean(s);
         return 2;
     }
-    
+
     set_result_info(s);
     set_operands_values(s);
 
@@ -243,7 +243,7 @@ uint8_t dispatch(Info *s)
 /**
  * @brief Sets the information about the result based on the operators info.
  * * Leaves the result value non altered to be set by the operation called.
- * 
+ *
  * @param current_state Pointer to the Info structure holding all operand, instruction result and registers info
  */
 static void set_result_info (Info *current_state)
@@ -262,7 +262,7 @@ static void set_result_info (Info *current_state)
 
 /**
  * @brief Universal function to update the flags after an operation based on the result of the operation and the operands info.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @param result The result of the operation of the two operands, used to set the flags
  * @param count The shift/rotate count actually applied (0 for non-shift/rotate opcodes) - needed because CF/OF for these depend on the count itself, not just the before/after values, e.g. CF is "the last bit shifted out" which requires knowing how many bits were shifted.
@@ -271,7 +271,7 @@ static void flags_update(Info *s, unsigned long long result, unsigned long long 
 {
     int bit_count = 8 * s->op1.size;
     int msb_shift = bit_count - 1;
-    
+
     unsigned long long bits_mask = (bit_count >= 64) ? 0xFFFFFFFFFFFFFFFFULL : (1ULL << bit_count) - 1;
     unsigned long long res_msb = result & bits_mask;
     unsigned long long op1_masked = s->op1_value & bits_mask;
@@ -385,7 +385,7 @@ static void flags_update(Info *s, unsigned long long result, unsigned long long 
     rflags &= ~((1U << 0) | (1U << 2) | (1U << 6) | (1U << 7) | (1U << 11));
     // Apply new values
     rflags |= (carry << 0) | (pf << 2) | (zero << 6) | (sign << 7) | (overflow << 11);
-    
+
     write_rflags(s->registers, rflags);
 }
 
@@ -395,10 +395,10 @@ static void flags_update(Info *s, unsigned long long result, unsigned long long 
 
 /**
  * @brief Automatically fetches and stores the resolved values for both instruction operands.
- * 
+ *
  * Evaluates s->op1 and s->op2, saving the extracted values directly into
  * s->op1_value and s->op2_value respectively.
- * 
+ *
  * @param s   Pointer to the current instruction Info execution context.
  */
 static void set_operands_values(Info *s)
@@ -412,10 +412,10 @@ static void set_operands_values(Info *s)
 
 /**
  * @brief Reads and returns the masked unsigned 64-bit value for a single operand.
- * 
+ *
  * Determines whether to read from memory or registers based on op->op_type,
  * and masks off unused upper bits according to op->size.
- * 
+ *
  * @param s   Pointer to the current instruction Info execution context.
  * @param op  Pointer to the Operand struct to evaluate.
  * @return    The resolved 64-bit unsigned integer value.
@@ -426,7 +426,7 @@ static unsigned long long get_operand_value(Info *s, Operand *op)
 
     unsigned long long value = 0ULL;
 
-    switch (op->op_type) 
+    switch (op->op_type)
     {
         case OP_MEMORY:
             // Fetch value from memory table
@@ -434,7 +434,7 @@ static unsigned long long get_operand_value(Info *s, Operand *op)
             break;
 
         case OP_REGISTER:
-            // Fetch value from CPU registers 
+            // Fetch value from CPU registers
             switch (op->size)
             {
                 case 1:
@@ -475,7 +475,7 @@ static unsigned long long get_operand_value(Info *s, Operand *op)
 
 /**
  * @brief Executes the compare instruction, which is a subtraction that only updates the flags and does not store the result.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the subtraction is not stored, only the flags are updated based on the result of the operation
  */
@@ -493,7 +493,7 @@ static void exec_cmp(Info *s)
 
 /**
  * @brief Executes non carried addition
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the addition is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -505,8 +505,8 @@ static void exec_add(Info *s)
 }
 
 /**
- * @brief Executes carried addition 
- * 
+ * @brief Executes carried addition
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the addition is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -519,7 +519,7 @@ static void exec_adc(Info *s)
 
 /**
  * @brief Executes non carried subtraction
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the subtraction is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -532,7 +532,7 @@ static void exec_sub(Info *s)
 
 /**
  * @brief Executes carried subtraction
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the subtraction is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -545,7 +545,7 @@ static void exec_sbb(Info *s)
 
 /**
  * @brief Executes the increment instruction, which adds 1 to the operand and updates the flags based on the result.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the increment is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -558,7 +558,7 @@ static void exec_inc(Info *s)
 
 /**
  * @brief Executes the decrement instruction, which subtracts 1 from the operand and updates the flags based on the result.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the decrement is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -571,7 +571,7 @@ static void exec_dec(Info *s)
 
 /**
  * @brief Executes the bitwise AND instruction, which performs a bitwise AND operation between the two operands and updates the flags based on the result.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the AND operation is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -584,7 +584,7 @@ static void exec_and(Info *s)
 
 /**
  * @brief Executes the bitwise OR instruction, which performs a bitwise OR operation between the two operands and updates the flags based on the result.
- *  
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the OR operation is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -597,7 +597,7 @@ static void exec_or(Info *s)
 
 /**
  * @brief Executes the bitwise XOR instruction, which performs a bitwise XOR operation between the two operands and updates the flags based on the result.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the XOR operation is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -610,7 +610,7 @@ static void exec_xor(Info *s)
 
 /**
  * @brief Executes the bitwise NOT instruction, which performs a bitwise NOT operation on the operand and updates the flags based on the result.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the NOT operation is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -623,7 +623,7 @@ static void exec_not(Info *s)
 
 /**
  * @brief Executes the NEG instruction, which negates the operand and updates the flags based on the result.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the NEG operation is stored in the result field of the Info structure and the flags are updated based on the result of the operation
  */
@@ -636,7 +636,7 @@ static void exec_neg(Info *s)
 
 /**
  * @brief Executes the XCHG instruction, which exchanges the values of the two operands without updating the flags.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning The result of the XCHG operation is stored in the op1 and op2 fields of the Info structure and the flags are not updated based on the result of the operation
  */
@@ -653,7 +653,7 @@ static void exec_xchg(Info *s)
 
 /**
  * @brief Executes unsigned multiplication of AL/AX/EAX/RAX by the first operand.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning Results are written implicitly across RAX and RDX (or AX) based on operand size
  */
@@ -685,7 +685,7 @@ static void exec_mul(Info *s)
     { // 64-bit
         __uint128_t res = (__uint128_t)rax_val * (__uint128_t)src;
         write_reg(s->registers, 0, (unsigned long long)res, 8, 0);          // RAX
-        write_reg(s->registers, 3, (unsigned long long)(res >> 64), 8, 0);  // RDX 
+        write_reg(s->registers, 3, (unsigned long long)(res >> 64), 8, 0);  // RDX
         cf_of = ((res >> 64) != 0);
     }
 
@@ -697,7 +697,7 @@ static void exec_mul(Info *s)
 
 /**
  * @brief Executes signed multiplication in single-operand form.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning Return value is written implicitly to RAX/RDX
  */
@@ -739,7 +739,7 @@ static void exec_imul(Info *s)
 
 /**
  * @brief Executes unsigned division of RDX : RAX (or AX) by the first operand.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning Quotient is stored in RAX (or AL) and remainder in RDX (or AH)
  */
@@ -782,7 +782,7 @@ static void exec_div(Info *s)
 
 /**
  * @brief Executes signed division of RDX:RAX (or AX) by the first operand.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  * @warning Quotient is stored in RAX (or AL) and remainder in RDX (or AH)
  */
@@ -825,7 +825,7 @@ static void exec_idiv(Info *s)
 
 /**
  * @brief Executes logical shift left on the destination operand by the count in op2.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  */
 static void exec_shl(Info *s)
@@ -844,7 +844,7 @@ static void exec_shl(Info *s)
 
 /**
  * @brief Executes arithmetic shift left on the destination operand (identical to SHL).
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  */
 static void exec_sal(Info *s)
@@ -854,7 +854,7 @@ static void exec_sal(Info *s)
 
 /**
  * @brief Executes logical shift right on the destination operand by the count in op2.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  */
 static void exec_shr(Info *s)
@@ -874,7 +874,7 @@ static void exec_shr(Info *s)
 
 /**
  * @brief Executes arithmetic shift right on the destination operand, preserving the sign bit.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  */
 static void exec_sar(Info *s)
@@ -899,7 +899,7 @@ static void exec_sar(Info *s)
 
 /**
  * @brief Executes bitwise rotate left on the destination operand by the count in op2.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  */
 static void exec_rol(Info *s)
@@ -919,7 +919,7 @@ static void exec_rol(Info *s)
 
 /**
  * @brief Executes bitwise rotate right on the destination operand by the count in op2.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  */
 static void exec_ror(Info *s)
@@ -939,7 +939,7 @@ static void exec_ror(Info *s)
 
 /**
  * @brief Executes rotate left through the carry flag on the destination operand by the count in op2.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  */
 static void exec_rcl(Info *s)
@@ -947,7 +947,7 @@ static void exec_rcl(Info *s)
     uint8_t size = s->op1.size;
     uint8_t bits = size * 8;
     uint64_t count = s->op2_value % (bits + 1);
-    
+
     uint64_t val = s->op1_value;
     uint8_t cf = (read_rflags(s->registers) & 1U);
 
@@ -970,7 +970,7 @@ static void exec_rcl(Info *s)
 
 /**
  * @brief Executes rotate right through the carry flag on the destination operand by the count in op2.
- * 
+ *
  * @param s Pointer to the Info structure holding all operand, instruction and results info
  */
 static void exec_rcr(Info *s)

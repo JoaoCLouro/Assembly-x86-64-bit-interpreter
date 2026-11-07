@@ -24,7 +24,7 @@ void test_sys_write_stdout() {
 
     const char* msg = "Hello, simulated stdout!";
     size_t msg_len = strlen(msg);
-    
+
     // Execute
     int64_t bytes_written = sys_write(1, (const uint8_t*)msg, msg_len);
 
@@ -36,14 +36,14 @@ void test_sys_write_stdout() {
     // Read the result
     char buffer[256] = {0};
     read(p[0], buffer, sizeof(buffer));
-    
+
     close(p[0]);
     close(p[1]);
 
     // Assertions
     assert(bytes_written == (int64_t)msg_len);
     assert(strcmp(buffer, msg) == 0);
-    
+
     PRINT_SUCCESS("sys_write to stdout (fd=1)");
 }
 
@@ -67,7 +67,7 @@ void test_sys_read_stdin() {
     // Restore original stdin
     dup2(old_stdin, STDIN_FILENO);
     close(old_stdin);
-    
+
     close(p[0]);
     close(p[1]);
 
@@ -138,11 +138,11 @@ void test_sys_close_protections() {
 
 void test_invalid_fds() {
     uint8_t buffer[10] = {0};
-    
+
     // Test with completely out-of-bounds FDs (not mapped to open files)
     assert(sys_read(9999, buffer, sizeof(buffer)) == -1);
     assert(sys_read(-1, buffer, sizeof(buffer)) == -1);
-    
+
     assert(sys_write(9999, buffer, sizeof(buffer)) == -1);
     assert(sys_write(-1, buffer, sizeof(buffer)) == -1);
 

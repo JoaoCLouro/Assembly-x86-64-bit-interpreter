@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// Compilation command: gcc -O3 -shared -o libmmu.so -fPIC memory_eng.c 
+// Compilation command: gcc -O3 -shared -o libmmu.so -fPIC memory_eng.c
 
 // --- Structures ---
 // Structure definition of the Table of pages of data
@@ -26,7 +26,7 @@ Table* table_init();
  * * Recursively frees all allocated pages and tables in the paging structure, starting from the given Table pointer.
  * * After freeing all allocated memory, the function also frees the Table structure itself.
  * @param table Pointer to the Table structure representing the root of the paging structure to be freed
- * @warning This function should be called when the paging structure is no longer needed to prevent memory leaks. 
+ * @warning This function should be called when the paging structure is no longer needed to prevent memory leaks.
  * * If the provided pointer is NULL, the function will simply return without performing any operations.
  */
 void free_table(Table* table);
@@ -37,7 +37,7 @@ void free_table(Table* table);
  * * If the address returned is not NULL writes value on it, else returns without writing.
  * * Handles page crossing by checking if the write stays within the 4KB boundary.
  * * If the amount of bytes to write is grater than one uses the write_block function to handle the write operation.
- * 
+ *
  * @param table Pointer to the Table structure representing the root of the paging structure
  * @param v_addr Virtual address given by the caller
  * @param data Pointer to the data to write
@@ -46,7 +46,7 @@ void free_table(Table* table);
  * @return 0 on success, 1 if the write operation encounters an unmapped address (Segmentation Fault)
  * @warning This function assumes that the data block does not exceed the maximum size of the virtual address space.
  * @note The create_page flag affects directly the permission to create new pages in the memory.
- * If set to 0, the function will not create new pages and will return without writing if the target page does not exist. 
+ * If set to 0, the function will not create new pages and will return without writing if the target page does not exist.
  * If set to 1, the function will create new pages as needed to accommodate the write operation.
  */
 int write_mem(Table* table, uint64_t v_addr, uint8_t *data, uint8_t size, uint8_t create_page);
@@ -57,7 +57,7 @@ int write_mem(Table* table, uint64_t v_addr, uint8_t *data, uint8_t size, uint8_
  * * If the address returned is NULL returns 1 to signal a Segmentation Fault.
  * * Handles page crossing by checking if the read stays within the 4KB boundary.
  * * If the amount of bytes to read is grater than one uses the read_block function to handle the read operation.
- * 
+ *
  * @param table Pointer to the Table structure representing the root of the paging structure
  * @param v_addr Virtual address given by the caller
  * @param buffer Pointer to the memory block where the result is expected to be given if it is found

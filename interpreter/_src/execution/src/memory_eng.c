@@ -58,15 +58,15 @@ static void free_recursive (Table* table, int level)
 }
 
 /**
- * @brief Main MMU function. 
+ * @brief Main MMU function.
  * * Should initialize the Table structure if it's not yet created.
  * * Used to handle reads and writes as well as manage page creation if needed.
- * 
+ *
  * @param CR3 Pointer to the Table structure representing the root of the paging structure
  * @param v_addr Virtual address given by the caller
  * @param create_page Flags for the operation type (0 - for read; 1 - for write)
  * @return Pointer to the physical byte, or NULL if unmapped and create_page is 0
- * @note create_page param affects directly Table structures creation permission. 
+ * @note create_page param affects directly Table structures creation permission.
  */
 uint8_t *decompose_address (Table *CR3, uint64_t v_addr, uint8_t create_page)
 {
@@ -126,7 +126,7 @@ int write_mem (Table* table, uint64_t v_addr, uint8_t *data, uint8_t size, uint8
 /**
  * @brief Writes a block of data to virtual memory.
  * * Handles page crossing by checking if the write stays within the 4KB boundary.
- * 
+ *
  * @param table Pointer to the Table structure representing the root of the paging structure
  * @param v_addr Virtual address where the block should be written
  * @param data Pointer to the block of data to be written
@@ -135,7 +135,7 @@ int write_mem (Table* table, uint64_t v_addr, uint8_t *data, uint8_t size, uint8
  * @return 0 on success, 1 if the write operation encounters an unmapped address (Segmentation Fault)
  * @warning This function assumes that the data block does not exceed the maximum size of the virtual address space.
  * @note The create_page flag affects directly the permission to create new pages in the memory.
- * If set to 0, the function will not create new pages and will return without writing if the target page does not exist. 
+ * If set to 0, the function will not create new pages and will return without writing if the target page does not exist.
  * If set to 1, the function will create new pages as needed to accommodate the write operation.
  */
 static int write_block (Table* table, uint64_t v_addr, uint8_t *data, uint8_t size, uint8_t create_page)
@@ -168,13 +168,13 @@ int read_mem (Table* table, uint64_t v_addr, uint8_t *buffer, uint8_t size)
         *buffer = *physical_addr;
         return 0;
     }
-        return read_block(table, v_addr, buffer, size);    
+        return read_block(table, v_addr, buffer, size);
 }
 
 /**
  * @brief Reads a block of data from virtual memory.
  * * Handles page crossing by checking if the read stays within the 4KB boundary.
- * 
+ *
  * @param table Pointer to the Table structure representing the root of the paging structure
  * @param v_addr Virtual address where the block should be read from
  * @param buffer Pointer to the buffer where the read data should be stored

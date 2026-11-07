@@ -449,13 +449,13 @@ Every arithmetic and logical function automatically re-evaluates and updates `EF
   // Conceptual pattern for arithmetic addition in operations.c
   uint64_t op_add64(uint64_t dest, uint64_t src) {
       uint64_t result = dest + src;
-      
+
       // Update EFLAGS
       set_flag_zf(result == 0);
       set_flag_sf((result & (1ULL << 63)) != 0);
       set_flag_cf(result < dest); // Unsigned overflow
       set_flag_of(((dest ^ result) & (src ^ result) & (1ULL << 63)) != 0); // Signed overflow
-      
+
       return result;
   }
 ```

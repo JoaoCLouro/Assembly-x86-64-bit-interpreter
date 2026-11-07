@@ -46,7 +46,7 @@ TEST(test_table_init_not_null) {
 TEST(test_free_table_no_crash) {
     Table *t = table_init();
     ASSERT(t != NULL);
-    free_table(t); 
+    free_table(t);
 }
 
 // 3. write_mem() returns 0 (success) for a simple single-byte write
@@ -136,7 +136,7 @@ TEST(test_write_no_create_page_fails) {
 
     uint8_t data = 0xFF;
     int ret = write_mem(t, 0xDEAD0000ULL, &data, 1, 0);
-    ASSERT(ret != 0);   
+    ASSERT(ret != 0);
 
     free_table(t);
 }
@@ -176,9 +176,9 @@ TEST(test_page_boundary_crossing) {
 
     // Address 0x0FFC is exactly 4 bytes before the end of the first 4KB page
     // Writing 8 bytes here will place 4 bytes in page 0, and 4 bytes in page 1
-    uint64_t addr = 0x0FFC; 
+    uint64_t addr = 0x0FFC;
     uint8_t src[8] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-    
+
     // Should successfully map both pages and split the write
     ASSERT(write_mem(t, addr, src, 8, 1) == 0);
 

@@ -14,12 +14,12 @@ typedef union x86_aliased_registers {
 
 typedef struct x86_reg_t {
     x86_aliased_registers reg;
-    uint8_t is_signed; 
+    uint8_t is_signed;
 } x86_reg_t;
 
 struct CPURegs {
-    x86_reg_t regs[16]; 
-    uint32_t rflags; 
+    x86_reg_t regs[16];
+    uint32_t rflags;
 };
 
 CPURegs* CPURegs_create() {
@@ -86,7 +86,7 @@ uint16_t read_2b_reg(CPURegs *current_state, uint8_t reg_id) {
 uint8_t read_1b_reg(CPURegs *current_state, uint8_t reg_id, uint8_t is_high) {
     x86_reg_t *ptr = get_reg_ptr(current_state, reg_id);
     if (!ptr) return 0;
-    
+
     if (is_high && reg_id < 4) return ptr->reg.r8.h;
     return ptr->reg.r8.l;
 }

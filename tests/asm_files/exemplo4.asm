@@ -2,7 +2,7 @@ section .data
     a: db 5
     b: db 15
 
-section .rodata 
+section .rodata
     con: dq 10000
 
 section .text

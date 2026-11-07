@@ -320,7 +320,7 @@ TEST(test_dispatch_add_sets_zero_flag) {
     Info *info = make_info(&regs, &table);
     ASSERT(info != NULL);
 
-    set64(regs, REG_A, (uint64_t)-1LL); 
+    set64(regs, REG_A, (uint64_t)-1LL);
     set64(regs, REG_B, 1);
 
     set_instruction(info, OP_ADD);

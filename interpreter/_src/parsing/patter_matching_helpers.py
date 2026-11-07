@@ -160,7 +160,7 @@ TOKENS_PATTERN = r"""(?x)
     [-+]?0[dD]\d+|                # Decimal prefix with sign
     [-+]?\d+[dD]|                 # Decimal suffix with sign (-100d)
     [-+]?[0-7]+[oOqQ]|            # Octal with sign
-    [a-zA-Z_]\w*:|                # Label/variable declarations 
+    [a-zA-Z_]\w*:|                # Label/variable declarations
     [a-zA-Z_]\w*|                 # Instructions / Registers / Labels (referenced, not declared)
     [-+]?\d+                      # Signed Decimals
 """

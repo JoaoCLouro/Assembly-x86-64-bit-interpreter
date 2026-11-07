@@ -25,13 +25,13 @@ _start:
     mov rax, 100
     add rax, 50         ; ADD
     adc rax, 1          ; ADC (Add with Carry)
-    
+
     sub rax, 20         ; SUB
     sbb rax, 0          ; SBB (Subtract with Borrow)
-    
+
     inc rax             ; INC
     dec rax             ; DEC
-    
+
     neg rax             ; NEG (Two's complement negation)
     cmp rax, 130        ; CMP (Sets flags without altering destination)
 

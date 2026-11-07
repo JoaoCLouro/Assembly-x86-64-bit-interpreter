@@ -58,14 +58,14 @@ TEST(test_free_no_crash) {
 
 TEST(test_out_of_bounds_reg) {
     CPURegs *r = CPURegs_create();
-    
+
     // Should safely do nothing without crashing
-    write_reg(r, 99, 0xFF, 1, 0); 
-    
+    write_reg(r, 99, 0xFF, 1, 0);
+
     // Should safely return 0 or default failure values
     ASSERT(read_8b_reg(r, 99) == 0);
     ASSERT(is_signed(r, 99) == -1);
-    
+
     CPURegs_free(r);
 }
 
@@ -126,7 +126,7 @@ TEST(test_8b_high_low_independence) {
     write_reg(r, REG_A, 0, 8, 0);    // Clear RAX
     write_reg(r, REG_A, 0xAA, 1, 0); // Write AL
     write_reg(r, REG_A, 0xBB, 1, 1); // Write AH
-    
+
     // AX should now be 0xBBAA
     ASSERT(read_2b_reg(r, REG_A) == 0xBBAA);
     CPURegs_free(r);
@@ -159,26 +159,26 @@ TEST(test_write_read_8b) {
 TEST(test_32b_zero_extension) {
     CPURegs *r = CPURegs_create();
     // Fill register with 1s
-    write_reg(r, REG_A, 0xFFFFFFFFFFFFFFFFULL, 8, 0); 
+    write_reg(r, REG_A, 0xFFFFFFFFFFFFFFFFULL, 8, 0);
     // Write 32-bit value
-    write_reg(r, REG_A, 0x12345678, 4, 0);            
-    
+    write_reg(r, REG_A, 0x12345678, 4, 0);
+
     // The upper 32 bits MUST be zeroed out
     uint64_t v = read_8b_reg(r, REG_A);
-    ASSERT(v == 0x0000000012345678ULL);               
+    ASSERT(v == 0x0000000012345678ULL);
     CPURegs_free(r);
 }
 
 TEST(test_16b_no_zero_extension) {
     CPURegs *r = CPURegs_create();
     // Fill register with 1s
-    write_reg(r, REG_A, 0xFFFFFFFFFFFFFFFFULL, 8, 0); 
+    write_reg(r, REG_A, 0xFFFFFFFFFFFFFFFFULL, 8, 0);
     // Write 16-bit value
-    write_reg(r, REG_A, 0x1234, 2, 0);            
-    
+    write_reg(r, REG_A, 0x1234, 2, 0);
+
     // The upper 48 bits MUST remain untouched
     uint64_t v = read_8b_reg(r, REG_A);
-    ASSERT(v == 0xFFFFFFFFFFFF1234ULL);               
+    ASSERT(v == 0xFFFFFFFFFFFF1234ULL);
     CPURegs_free(r);
 }
 
@@ -197,7 +197,7 @@ TEST(test_registers_independent) {
 
 TEST(test_read_rflags_no_crash) {
     CPURegs *r = CPURegs_create();
-    (void)read_rflags(r); 
+    (void)read_rflags(r);
     CPURegs_free(r);
 }
 
@@ -247,21 +247,21 @@ TEST(test_overflow_flag) {
 
 TEST(test_parity_flag) {
     CPURegs *r = CPURegs_create();
-    
+
     // Set Parity Flag (bit 2 -> 0x4)
     write_rflags(r, read_rflags(r) | 0x4);
     ASSERT(read_parity_flag(r) != 0);
-    
+
     // Clear Parity Flag
     write_rflags(r, read_rflags(r) & ~0x4);
     ASSERT(read_parity_flag(r) == 0);
-    
+
     CPURegs_free(r);
 }
 
 TEST(test_trap_flag_toggle) {
     CPURegs *r = CPURegs_create();
-    
+
     // First call should set it
     set_trap_flag(r);
     ASSERT(read_trap_flag(r) != 0);
@@ -269,7 +269,7 @@ TEST(test_trap_flag_toggle) {
     // Second call should clear it
     set_trap_flag(r);
     ASSERT(read_trap_flag(r) == 0);
-    
+
     CPURegs_free(r);
 }
 
@@ -304,10 +304,10 @@ int main(void) {
     RUN(test_write_read_2b);
     RUN(test_write_read_4b);
     RUN(test_write_read_8b);
-    
+
     RUN(test_32b_zero_extension);
     RUN(test_16b_no_zero_extension);
-    
+
     RUN(test_registers_independent);
 
     RUN(test_read_rflags_no_crash);

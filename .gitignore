@@ -29,8 +29,6 @@ program_cache/
 # pip specific
 *.egg-info/
 
-# uv specific
-uv.lock
 
 # ruff
 .ruff_cache/

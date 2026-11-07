@@ -1,0 +1,41 @@
+version: 2
+updates:
+  # Python / pyproject.toml (uv)
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    ignore:
+      # The containers use python 3.14 and the project must also keep this version
+      - dependency-name: "python"
+    groups:
+      # Groups Prod dependencies in a single PR
+      prod-dependencies:
+        dependency-type: "production"
+        patterns:
+          - "*"
+
+      # Groups Dev dependencies in a single PR
+      dev-dependencies:
+        dependency-type: "development"
+        patterns:
+          - "*"
+
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+  # GitHub Actions Workflow
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore"
+      include: "scope"

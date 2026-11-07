@@ -29,6 +29,7 @@ program_cache/
 # pip specific
 *.egg-info/
 
+.testmondata
 
 # ruff
 .ruff_cache/

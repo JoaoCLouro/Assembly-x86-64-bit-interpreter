@@ -293,14 +293,13 @@ wheels = [
 name = "cpu-simulator"
 version = "0.3.2"
 source = { editable = "." }
-dependencies = [
-    { name = "pre-commit", version = "4.6.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "pre-commit", version = "4.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-]
 
 [package.optional-dependencies]
 test = [
     { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-testmon", version = "2.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "pytest-testmon", version = "2.3.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 
 [package.dev-dependencies]
@@ -316,8 +315,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-cov", marker = "extra == 'test'" },
+    { name = "pytest-testmon", marker = "extra == 'test'" },
 ]
 provides-extras = ["test"]
 

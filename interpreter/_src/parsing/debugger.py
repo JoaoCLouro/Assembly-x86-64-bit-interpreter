@@ -18,12 +18,41 @@ class InvalidCommandError(Exception):
 class Command(Enum):
     """GDB-like Debugger commands."""
 
-    STEP = "step"
+    RUN = "run"
+    STEP = "step instruction"
     CONTINUE = "continue"
     BREAK = "break"
-    REMOVE_BREAK = "remove_break"
-    LIST_BREAKS = "list_breaks"
+    DELETE = " delete"
+    INFO_BREAKPOINTS = "info breakpoints"
+    INFO_REGISTERS = "info registers"
+    EXAMINE = "x"
+    HELP = "help"
     QUIT = "quit"
+
+
+class ExecutionCommand:
+    def __init__(self, command: Command, args: list[str]):
+        self.command = command
+        self._match_command_args(command, args or [])
+
+    def _match_command_args(self, command: Command, args: list[str]):
+        """
+        Match the command with its expected arguments.
+        """
+
+        match command:
+            case Command.INFO_BREAKPOINTS:
+                pass
+            case Command.INFO_REGISTERS:
+                if args:
+                    pass
+            case Command.EXAMINE:
+                if args:
+                    pass
+            case _:
+                print(
+                    "[DEBUG]: Clause not exhaustive enough! Report to the developers."
+                )
 
 
 class Debugger:
@@ -40,7 +69,7 @@ class Debugger:
         self.control_unit: Control_Unit = control_unit
         self.breakpoints: set[int] = set()
 
-    def read_command(self) -> Command:
+    def read_command(self) -> ExecutionCommand:
         """Read a command from the user."""
         command = input("(debugger) ").strip()
         try:
@@ -88,12 +117,21 @@ class Debugger:
         print("Exiting debugger.")
         sys.exit(0)
 
+    # === Memory and Register Inspection ===
+    def _read_registers(self):
+        """Read and display the current state of all registers."""
+
+    def _examine_memory(self):
+        """Examine memory at a specified address."""
+
     # === Command Matching ===
 
-    def _match_command(self, command: str) -> Command:
+    def _match_command(self, command: str) -> ExecutionCommand:
         """
         Approximate the user input to a Command enum using fuzzy matching.
         If the input is ambiguous or does not match any command, raise an InvalidCommandError.
+        Should handle partial matches and case insensitivity.
+        Should also handle commands with arguments, like "info registers rax".
 
         :param command: The user input command string.
         :type command: str
@@ -101,6 +139,7 @@ class Debugger:
         :rtype: Command
         :raises InvalidCommandError: If the input is ambiguous or does not match any command.
         """
+        # TODO: Implement fuzzy matching logic here. For now, we will use a simple approach.
         possible_commands = [
             cmd for cmd in Command if cmd.value.startswith(command.lower())
         ]

@@ -1,13 +1,29 @@
 """
-Debugging utilities for the parser.
+GDB-style debugger for the x86-64 interpreter, built to sit behind any front end.
+
+Layers (use whichever your front end needs):
+  - Parsing:    `Debugger.parse(line)` -> ExecutionCommand (no I/O).
+  - Fetching:   `read_registers`, `examine_memory`, `source_lines`,
+                `breakpoint_lines`, ... return data and never print.
+  - Running:    `step()` and `run_chunk(n)` return a `Stop`; `run_chunk` runs at
+                most n instructions so a UI can stay responsive between chunks.
+  - Executing:  `execute(ec)` / `submit(line)` run a command and return a
+                `CommandResult` (structured data plus ready-to-show text lines).
+  - Console:    `repl()` is a plain-terminal front end built on the layers above.
+
+Nothing here calls `print`, `input` or `sys.exit` except `read_command` and
+`repl`, the plain-terminal front end. Text the emulated program prints while it
+runs is captured and handed back, not written to the terminal.
 """
 
-from collections.abc import Mapping
+import contextlib
+import io
 import re
-import sys
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from enum import Enum
 
-from interpreter._src.parsing.control_unit import Control_Unit
+from interpreter._src.parsing.control_unit import Control_Unit, CPUException
 from interpreter._src.parsing.patter_matching_helpers import REGISTER_PATTERN
 
 
@@ -79,6 +95,28 @@ RADIX_NAMES = {
     "hex": 16, "hexadecimal": 16,
 }
 VALID_RADIXES = (2, 8, 10, 16)
+RADIX_LABELS = {2: "binary", 8: "octal", 10: "decimal", 16: "hexadecimal"}
+
+# How many x/ units are shown per row, by unit size in bytes (same as GDB).
+MEMORY_UNITS_PER_ROW = {1: 8, 2: 8, 4: 4, 8: 2}
+
+# Instructions executed per `run_chunk` call unless told otherwise.
+DEFAULT_CHUNK = 1000
+
+HELP_TEXT = """\
+Debugger commands (unique prefixes work, e.g. 'inf re' for 'info registers'):
+  run (r)                              run until a breakpoint or the end
+  continue (c)                         continue until the next breakpoint or the end
+  step instruction (stepi, si, s)      execute one instruction
+  break (b) LINE                       set a breakpoint at LINE
+  delete (d) LINE                      remove the breakpoint at LINE
+  info breakpoints (i b)               list breakpoints
+  info registers [REG] (i r)           show all registers, or just REG
+  x/NFU ADDRESS                        examine memory: N=count, F=x|d|u, U=b|h|w|g
+                                       ADDRESS is a number (0x1000) or a register ($rsp)
+  radix [2|8|10|16|bin|oct|dec|hex]    show or change the register output base
+  help (h)                             show this text
+  quit (q, exit)                       leave the debugger"""
 
 
 class ExecutionCommand:
@@ -157,9 +195,8 @@ class ExecutionCommand:
                 self._parse_address(args[1])
 
             case _:
-                print(
-                    "[DEBUG]: Clause not exhaustive enough! Report to the developers."
-                )
+                # A Command exists that has no argument rules: a bug, not user error.
+                raise ValueError(f"No argument rules for command {command!r}")
 
     # --- Argument helpers ---
 
@@ -223,76 +260,258 @@ class ExecutionCommand:
         return f"ExecutionCommand({self.command.name}, {fields})"
 
 
+class StopReason(Enum):
+    """Why execution stopped after a step or a run."""
+
+    STEPPED = "stepped"  # a single instruction was executed
+    BREAKPOINT = "breakpoint"  # about to execute a line with a breakpoint
+    FINISHED = "finished"  # the program ended normally
+    EXITED = "exited"  # the program or interpreter called sys.exit
+    FAULT = "fault"  # the emulated CPU raised a CPUException
+
+
+@dataclass(frozen=True)
+class Stop:
+    """What happened when execution stopped. `line` is 1-based (the next line to run)."""
+
+    reason: StopReason
+    line: int | None = None
+    exit_code: int | None = None  # EXITED only
+    exit_name: str | None = None  # EXITED only, e.g. "INVALID_SYSCALL" when available
+    message: str | None = None  # FAULT message, or EXITED with a non-numeric code
+
+
+@dataclass(frozen=True)
+class SourceLine:
+    """One line of the program, for a source panel. `number` is 1-based."""
+
+    number: int
+    text: str
+    is_current: bool = False
+    has_breakpoint: bool = False
+
+
+@dataclass
+class CommandResult:
+    """
+    The outcome of executing one command.
+
+    `lines` is the human-readable text for the command, ready to append to a
+    log. The other fields carry the same information as data so a UI can feed
+    panels instead of parsing text; only the fields relevant to the command
+    are set. Text the emulated program printed while running is in `output`
+    and is not repeated in `lines`.
+    """
+
+    command: Command | None
+    lines: list[str] = field(default_factory=list[str])
+    ok: bool = True  # False when the command was rejected (bad input, bad address, ...)
+    output: str = ""
+    stop: Stop | None = None  # STEP / RUN / CONTINUE
+    registers: dict[str, int | str] | None = None  # INFO_REGISTERS
+    memory: dict[int, int | str] | None = None  # EXAMINE: address -> value
+    memory_unit: int = 8
+    memory_fmt: str = "x"
+    breakpoints: list[int] | None = None  # BREAK / DELETE / INFO_BREAKPOINTS (1-based)
+    radix: int | None = None  # RADIX
+    quit: bool = False  # QUIT: the front end should close
+
+    @property
+    def text(self) -> str:
+        return "\n".join(self.lines)
+
+
 class Debugger:
     """
-    A simple debugger for the parser.
+    A GDB-like debugger for the interpreter's `Control_Unit`.
 
-    Main Fixtures:
-        - GDB like commands for stepping through the parsing process.
-        - Logging of parsing events and state changes.
-        - `Textual` based CLI interface for interactive debugging.
+    API:
+        - `parse`, `read_command`: turn text into a validated ExecutionCommand.
+        - `execute`, `submit`: run a command / a line of text, get a CommandResult.
+        - `step`, `run_chunk`, `continue_execution`: run the program, get a Stop.
+        - `stop_result`: turn a Stop into a CommandResult (for front ends that
+          drive `run_chunk` themselves).
+        - `read_registers`, `examine_memory`, `resolve_address`, `set_radix`.
+        - `add_breakpoint`, `remove_breakpoint`, `breakpoint_lines`.
+        - `source_lines`, `current_line`, `program_lines`.
+        - `take_output`: text the emulated program printed since the last call.
+        - `repl`: plain-terminal front end.
     """
 
     def __init__(self, control_unit: Control_Unit):
         self.control_unit: Control_Unit = control_unit
-        self.breakpoints: set[int] = set()
+        self.breakpoints: set[int] = set()  # 0-based line indexes (compared with rip)
         self.num_rep: int = 10  # base used for register output, changed by `radix`
+        self._exit_stop: Stop | None = None
+        self._output = io.StringIO()
 
-    def read_command(self) -> ExecutionCommand:
-        """Read a command from the user, prompting again until it is valid."""
-        while True:
-            line = input("(debugger) ").strip()
-            if not line:
-                continue
-            try:
-                return self._match_command(line)
-            except InvalidCommandError as e:
-                print(e)
+    @property
+    def done(self) -> bool:
+        """True once the program ended, exited or faulted."""
+        return self.control_unit.finished or self._exit_stop is not None
 
-    # === Breakpoint Management ===
+    # === Program text ===
 
-    def add_breakpoint(self, line_number: int):
-        """Add a breakpoint at the specified line number."""
-        self.breakpoints.add(line_number - 1)  # Adjust for 0-based indexing
+    @staticmethod
+    def format_instruction(tokens: "list[str] | tuple[str, ...] | str") -> str:
+        """Render a tokenised line as text: ['mov', 'rax', '1'] -> 'mov rax, 1'."""
+        if isinstance(tokens, str):
+            return tokens
+        tokens = list(tokens)
+        if len(tokens) <= 1:
+            return "".join(tokens)
+        return f"{tokens[0]} {', '.join(tokens[1:])}"
 
-    def remove_breakpoint(self, line_number: int):
-        """Remove a breakpoint from the specified line number."""
-        self.breakpoints.discard(line_number - 1)  # Adjust for 0-based indexing
+    def source_lines(self) -> list[SourceLine]:
+        """Every line of the program with its current-line and breakpoint flags."""
+        rip = self.control_unit.rip
+        return [
+            SourceLine(i + 1, self.format_instruction(tokens), i == rip, i in self.breakpoints)
+            for i, tokens in enumerate(self.control_unit.text_section)
+        ]
 
-    def list_breakpoints(self):
-        """List all current breakpoints."""
-        if not self.breakpoints:
-            print("No breakpoints set.")
-        else:
-            print("Current breakpoints:")
-            for bp in sorted(self.breakpoints):
-                print(f"  Line {bp + 1}")
+    def current_line(self) -> SourceLine | None:
+        """The line about to be executed, or None if the program is over or rip is out of range."""
+        if self.done:
+            return None
+        rip = self.control_unit.rip
+        text_section = self.control_unit.text_section
+        if not 0 <= rip < len(text_section):
+            return None
+        return SourceLine(
+            rip + 1,
+            self.format_instruction(text_section[rip]),
+            is_current=True,
+            has_breakpoint=rip in self.breakpoints,
+        )
 
-    # === Execution Control ===
-
-    def step(self):
-        """Step through the next instruction."""
-        self.control_unit._step()  # type: ignore
-
-    def continue_execution(self) -> Control_Unit:
-        """Continue execution until the next breakpoint or end of program."""
-        # Step once to avoid immediately hitting the current breakpoint if the program is already at a breakpoint
-        self.step() if not self.control_unit.finished else None 
-
-        while not self.control_unit.finished:
-            if self.control_unit.rip in self.breakpoints:
-                break
+    def program_lines(self) -> list[str]:
+        """The program as display strings: ' --> ' marks the current line and 'b' a breakpoint."""
+        rows: list[str] = []
+        for line in self.source_lines():
+            if line.is_current and line.has_breakpoint:
+                gutter = " -->b"
+            elif line.is_current:
+                gutter = " --> "
+            elif line.has_breakpoint:
+                gutter = "  b  "
             else:
-                self.step()
-        return self.control_unit
+                gutter = "     "
+            rows.append(f"{gutter}{line.number}: {line.text}")
+        return rows
 
-    def quit(self):
-        """Quit the debugger and exit the program."""
-        print("Exiting debugger.")
-        sys.exit(0)
+    # === Breakpoints ===
 
-    # === Memory and Register Inspection ===
-    def _read_registers(
+    def add_breakpoint(self, line_number: int) -> bool:
+        """Set a breakpoint at a 1-based line. Returns False if it was already set."""
+        index = line_number - 1
+        if index in self.breakpoints:
+            return False
+        self.breakpoints.add(index)
+        return True
+
+    def remove_breakpoint(self, line_number: int) -> bool:
+        """Remove the breakpoint at a 1-based line. Returns False if there was none."""
+        index = line_number - 1
+        if index not in self.breakpoints:
+            return False
+        self.breakpoints.discard(index)
+        return True
+
+    def breakpoint_lines(self) -> list[int]:
+        """The 1-based lines that have a breakpoint, in order."""
+        return [bp + 1 for bp in sorted(self.breakpoints)]
+
+    # === Running the program ===
+
+    def step(self) -> Stop:
+        """Execute one instruction. Safe to call after the program ended (returns that end)."""
+        if self.done:
+            return self._end_stop()
+        with contextlib.redirect_stdout(self._output):
+            stop = self._step_once()
+        if stop is None and self.control_unit.finished:
+            stop = Stop(StopReason.FINISHED)
+        return stop or Stop(StopReason.STEPPED, line=self.control_unit.rip + 1)
+
+    def run_chunk(self, max_steps: int = DEFAULT_CHUNK) -> Stop | None:
+        """
+        Run at most `max_steps` instructions, stopping early at a breakpoint or
+        when the program ends.
+
+        The first instruction always executes before breakpoints are checked, so
+        calling this while standing on a breakpoint moves past it. A front end
+        calls this repeatedly (yielding to its event loop in between) until it
+        returns a Stop, so a long or endless program never freezes the UI.
+
+        :return: The Stop, or None if `max_steps` ran out and the program is still going.
+        """
+        if self.done:
+            return self._end_stop()
+        with contextlib.redirect_stdout(self._output):
+            for _ in range(max_steps):
+                stop = self._step_once()
+                if stop is None and self.control_unit.finished:
+                    stop = Stop(StopReason.FINISHED)
+                if stop is not None:
+                    return stop
+                if self.control_unit.rip in self.breakpoints:
+                    return Stop(StopReason.BREAKPOINT, line=self.control_unit.rip + 1)
+        return None
+
+    def continue_execution(self) -> Stop:
+        """
+        Run until a breakpoint or the end of the program. Blocks the caller, so
+        a program that never ends never returns: front ends that must stay
+        responsive should loop over `run_chunk` instead.
+        """
+        while True:
+            stop = self.run_chunk()
+            if stop is not None:
+                return stop
+
+    def take_output(self) -> str:
+        """Return, and clear, the text the emulated program printed since the last call."""
+        text = self._output.getvalue()
+        self._output.seek(0)
+        self._output.truncate()
+        return text
+
+    def _step_once(self) -> Stop | None:
+        """Execute one instruction; return a Stop only if it ended the program abnormally."""
+        try:
+            self.control_unit._step()  # type: ignore
+        except CPUException as e:
+            # Same handling as Control_Unit.run(): report it and end the program
+            self.control_unit.finished = True
+            self._exit_stop = Stop(
+                StopReason.FAULT, line=self.control_unit.rip + 1, message=str(e)
+            )
+        except SystemExit as e:
+            # The interpreter calls sys.exit on bad instructions, a missing exit, etc.
+            self._exit_stop = self._stop_from_exit(e)
+        return self._exit_stop
+
+    def _stop_from_exit(self, exc: SystemExit) -> Stop:
+        code = exc.code
+        name = getattr(code, "name", None)  # ExitCode members carry a name
+        value = getattr(code, "value", code)
+        if value is None:
+            value = 0
+        return Stop(
+            StopReason.EXITED,
+            line=self.control_unit.rip + 1,
+            exit_code=value if isinstance(value, int) else None,
+            exit_name=name,
+            message=None if isinstance(value, int) else str(value),
+        )
+
+    def _end_stop(self) -> Stop:
+        return self._exit_stop or Stop(StopReason.FINISHED)
+
+    # === Registers, memory and output settings ===
+
+    def read_registers(
         self, register: str | None = None, num_rep: int | None = None
     ) -> dict[str, int | str]:
         """
@@ -317,10 +536,10 @@ class Debugger:
         except ValueError as e:
             raise InvalidCommandError(str(e))
         registers = self.control_unit.registers
-        state["rip"] = Control_Unit._format_value(self.control_unit.rip, 8, num_rep) # type: ignore
+        state["rip"] = Control_Unit._format_value(self.control_unit.rip, 8, num_rep)  # type: ignore
         # read_flags returns the 32-bit flags register as little-endian bytes
         eflags = int.from_bytes(registers.read_flags(), byteorder="little")
-        state["eflags"] = Control_Unit._format_value(eflags, 4, num_rep) # type: ignore
+        state["eflags"] = Control_Unit._format_value(eflags, 4, num_rep)  # type: ignore
 
         if register is None:
             return state
@@ -334,21 +553,21 @@ class Debugger:
         # which read_reg resolves to the right parent and width.
         try:
             size = registers.get_register_parent(name)[1]
-            return {name: Control_Unit._format_value(registers.read_reg(name), size, num_rep)} # type: ignore
+            return {name: Control_Unit._format_value(registers.read_reg(name), size, num_rep)}  # type: ignore
         except ValueError:
             raise InvalidCommandError(f"Unknown register: '{register}'.")
 
-    def _resolve_address(self, command: ExecutionCommand) -> int:
+    def resolve_address(self, command: ExecutionCommand) -> int:
         """Return the absolute address an EXAMINE command points at, reading `$reg` if needed."""
         if command.address_register is not None:
-            value = self._read_registers(command.address_register, num_rep=10)
+            value = self.read_registers(command.address_register, num_rep=10)
             (raw,) = value.values()
             assert isinstance(raw, int)
             return raw & 0xFFFFFFFFFFFFFFFF  # registers are read signed
         assert command.address is not None
         return command.address
 
-    def _examine_memory(
+    def examine_memory(
         self, address: int, count: int = 1, unit: int = 8, fmt: str = "x"
     ) -> dict[int, int | str]:
         """
@@ -374,11 +593,9 @@ class Debugger:
                 continue
             signed = int.from_bytes(data, byteorder="little", signed=True)
             values[addr] = (
-                signed if fmt == "d" else Control_Unit._format_value(signed, unit, 16) # type: ignore
+                signed if fmt == "d" else Control_Unit._format_value(signed, unit, 16)  # type: ignore
             )
         return values
-
-    # === Output Settings ===
 
     def set_radix(self, base: int | None = None) -> int:
         """
@@ -395,14 +612,210 @@ class Debugger:
             self.num_rep = base
         return self.num_rep
 
-    # === Command Matching ===
+    @staticmethod
+    def help_text() -> str:
+        return HELP_TEXT
 
-    def _match_command(self, line: str) -> ExecutionCommand:
+    # === Command execution ===
+
+    def submit(self, line: str) -> CommandResult:
+        """Parse and execute one line of user input. Never raises for bad input."""
+        if not line.strip():
+            return CommandResult(None)
+        try:
+            ec = self.parse(line)
+        except InvalidCommandError as e:
+            return CommandResult(None, [str(e)], ok=False)
+        return self.execute(ec)
+
+    def execute(self, ec: ExecutionCommand) -> CommandResult:
+        """
+        Run one validated command and return its result.
+
+        Problems with the command itself (unknown register, unreadable memory,
+        ...) come back as a result with `ok=False`, not as exceptions. RUN and
+        CONTINUE block until the program stops; a UI that must stay responsive
+        should loop over `run_chunk` and call `stop_result` instead.
+        """
+        try:
+            match ec.command:
+                case Command.RUN | Command.CONTINUE:
+                    if self.done:
+                        return CommandResult(ec.command, ["The program is not being run."])
+                    return self.stop_result(ec.command, self.continue_execution())
+                case Command.STEP:
+                    if self.done:
+                        return CommandResult(ec.command, ["Program has finished."])
+                    return self.stop_result(ec.command, self.step())
+                case Command.BREAK:
+                    assert ec.line is not None
+                    added = self.add_breakpoint(ec.line)
+                    text = (
+                        f"Breakpoint set at line {ec.line}."
+                        if added
+                        else f"Breakpoint already set at line {ec.line}."
+                    )
+                    return CommandResult(ec.command, [text], breakpoints=self.breakpoint_lines())
+                case Command.DELETE:
+                    assert ec.line is not None
+                    removed = self.remove_breakpoint(ec.line)
+                    text = (
+                        f"Breakpoint at line {ec.line} removed."
+                        if removed
+                        else f"No breakpoint at line {ec.line}."
+                    )
+                    return CommandResult(ec.command, [text], breakpoints=self.breakpoint_lines())
+                case Command.INFO_BREAKPOINTS:
+                    lines = self.breakpoint_lines()
+                    text_lines = (
+                        ["Current breakpoints:"] + [f"  Line {n}" for n in lines]
+                        if lines
+                        else ["No breakpoints set."]
+                    )
+                    return CommandResult(ec.command, text_lines, breakpoints=lines)
+                case Command.INFO_REGISTERS:
+                    registers = self.read_registers(ec.register)
+                    return CommandResult(
+                        ec.command,
+                        [f"{name:<8}{value}" for name, value in registers.items()],
+                        registers=registers,
+                    )
+                case Command.EXAMINE:
+                    address = self.resolve_address(ec)
+                    memory = self.examine_memory(address, ec.count, ec.unit, ec.fmt)
+                    return CommandResult(
+                        ec.command,
+                        self._format_memory(memory, ec.unit),
+                        memory=memory,
+                        memory_unit=ec.unit,
+                        memory_fmt=ec.fmt,
+                    )
+                case Command.RADIX:
+                    base = self.set_radix(ec.radix)
+                    label = f"{RADIX_LABELS[base]} (base {base})"
+                    text = (
+                        f"Current output radix: {label}."
+                        if ec.radix is None
+                        else f"Output radix set to {label}."
+                    )
+                    return CommandResult(ec.command, [text], radix=base)
+                case Command.HELP:
+                    return CommandResult(ec.command, self.help_text().splitlines())
+                case Command.QUIT:
+                    return CommandResult(ec.command, ["Exiting debugger."], quit=True)
+                case _:
+                    # A Command exists that has no handler: a bug, not user error.
+                    raise ValueError(f"No handler for command {ec.command!r}")
+        except InvalidCommandError as e:
+            return CommandResult(ec.command, [str(e)], ok=False)
+
+    def stop_result(self, command: Command | None, stop: Stop) -> CommandResult:
+        """
+        Build the result for a Stop, and collect the program's captured output.
+
+        `execute` uses this for STEP/RUN/CONTINUE. Front ends that drive
+        `run_chunk` themselves call it once the loop ends.
+        """
+        return CommandResult(
+            command, self._describe_stop(stop), stop=stop, output=self.take_output()
+        )
+
+    def _describe_stop(self, stop: Stop) -> list[str]:
+        match stop.reason:
+            case StopReason.STEPPED:
+                return self._location_lines()
+            case StopReason.BREAKPOINT:
+                return [f"Breakpoint hit at line {stop.line}."] + self._location_lines()
+            case StopReason.FINISHED:
+                return ["Program finished."]
+            case StopReason.EXITED:
+                if stop.exit_code is None:
+                    what = f"Program exited: {stop.message}"
+                else:
+                    code = (
+                        f"{stop.exit_code} ({stop.exit_name})"
+                        if stop.exit_name
+                        else str(stop.exit_code)
+                    )
+                    what = f"Program exited with code {code}"
+                return [f"{what} at line {stop.line}."]
+            case StopReason.FAULT:
+                return [f"CPU exception: {stop.message} at line {stop.line}."]
+
+    def _location_lines(self) -> list[str]:
+        """The line about to execute, e.g. ['12: mov rax, 1']."""
+        if self.done:
+            return []
+        line = self.current_line()
+        if line is None:
+            return [f"At line {self.control_unit.rip + 1}."]
+        return [f"{line.number}: {line.text}"]
+
+    @staticmethod
+    def _format_memory(values: Mapping[int, int | str], unit: int) -> list[str]:
+        """Format x/ results GDB-style: an address, then a few units per row."""
+        per_row = MEMORY_UNITS_PER_ROW[unit]
+        items = list(values.items())
+        rows: list[str] = []
+        for start in range(0, len(items), per_row):
+            row = items[start : start + per_row]
+            # Zero-pad hex strings to the unit width so columns line up
+            cells = [
+                "0x" + v[2:].zfill(unit * 2) if isinstance(v, str) else str(v)
+                for _, v in row
+            ]
+            rows.append(f"0x{row[0][0]:x}:\t" + "\t".join(cells))
+        return rows
+
+    # === Plain-terminal front end ===
+
+    def read_command(self) -> ExecutionCommand:
+        """Read a command from the terminal, prompting again until it is valid."""
+        while True:
+            line = input("(debugger) ").strip()
+            if not line:
+                continue
+            try:
+                return self.parse(line)
+            except InvalidCommandError as e:
+                print(e)
+
+    def repl(self) -> None:
+        """
+        Plain-terminal loop: read, execute, print, until `quit`.
+
+        Returns when the user quits (Ctrl-D counts); it does not exit the
+        process, so the caller decides what happens next. Ctrl-C at the prompt
+        only prints a reminder.
+        """
+        for text in self._location_lines():
+            print(text)
+        while True:
+            try:
+                ec = self.read_command()
+            except EOFError:
+                print("\nExiting debugger.")
+                return
+            except KeyboardInterrupt:
+                print("\nQuit (type 'quit' to exit).")
+                continue
+            result = self.execute(ec)
+            if result.output:
+                print(result.output, end="" if result.output.endswith("\n") else "\n")
+            for text in result.lines:
+                print(text)
+            if result.quit:
+                return
+
+    # === Command matching ===
+
+    def parse(self, line: str) -> ExecutionCommand:
         """
         Turn a raw input line into a validated ExecutionCommand.
 
         Handles case insensitivity, aliases, unique-prefix matching
         (e.g. "inf re" -> "info registers"), and x/NFU memory examination.
+        Does no I/O.
 
         :param line: The user input command string.
         :return: The matched and argument-validated ExecutionCommand.
@@ -436,7 +849,11 @@ class Debugger:
         return ExecutionCommand(command, rest)
 
     @staticmethod
-    def _resolve(word: str, aliases: Mapping[str, Command | str], names: Mapping[str, Command | str]) -> Command | str:
+    def _resolve(
+        word: str,
+        aliases: Mapping[str, Command | str],
+        names: Mapping[str, Command | str],
+    ) -> Command | str:
         """Exact alias first, then exact name, then unique prefix."""
         if word in aliases:
             return aliases[word]

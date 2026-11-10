@@ -276,6 +276,9 @@ class Debugger:
 
     def continue_execution(self) -> Control_Unit:
         """Continue execution until the next breakpoint or end of program."""
+        # Step once to avoid immediately hitting the current breakpoint if the program is already at a breakpoint
+        self.step() if not self.control_unit.finished else None 
+
         while not self.control_unit.finished:
             if self.control_unit.rip in self.breakpoints:
                 break

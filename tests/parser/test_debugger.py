@@ -660,11 +660,7 @@ class TestExecutionControl:
         debugger.continue_execution()
         assert cu.steps == 0
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="continue_execution checks the breakpoint before stepping, "
-        "so it cannot leave a breakpoint it is stopped on",
-    )
+    
     def test_continue_from_a_breakpoint_makes_progress(self, cu):
         cu.rip = 2
         d = Debugger(cu)
@@ -672,10 +668,7 @@ class TestExecutionControl:
         d.continue_execution()
         assert cu.steps >= 1
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="same issue: a second continue never moves past the first stop",
-    )
+    
     def test_second_continue_reaches_the_next_breakpoint(self, debugger, cu):
         debugger.add_breakpoint(3)
         debugger.add_breakpoint(6)

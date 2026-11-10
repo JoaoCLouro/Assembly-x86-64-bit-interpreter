@@ -4,8 +4,8 @@ Debugging utilities for the parser.
 
 import re
 import sys
-from collections.abc import Mapping
 from enum import Enum
+from typing import Mapping
 
 from interpreter._src.parsing.control_unit import Control_Unit
 from interpreter._src.parsing.patter_matching_helpers import REGISTER_PATTERN
@@ -26,6 +26,7 @@ class Command(Enum):
     INFO_BREAKPOINTS = "info breakpoints"
     INFO_REGISTERS = "info registers"
     EXAMINE = "x"
+    RADIX = "radix"
     HELP = "help"
     QUIT = "quit"
 
@@ -65,6 +66,20 @@ UNIT_SIZES = {"b": 1, "h": 2, "w": 4, "g": 8}
 FORMATS = {"x", "d", "u"}
 EXAMINE_SPEC = re.compile(r"(\d*)([bhwgxdu]*)")
 
+# Readable state that is not a general-purpose register: rip lives on the
+# Control_Unit, the single flags come from get_state("registers"), and eflags
+# is the whole flags register from Registers_Interface.read_flags().
+EXTRA_REGISTERS = {"rip", "eflags", "zf", "cf", "sf", "of", "pf", "tf"}
+
+# Numerical representations supported by Control_Unit.get_state, by name or number.
+RADIX_NAMES = {
+    "bin": 2, "binary": 2,
+    "oct": 8, "octal": 8,
+    "dec": 10, "decimal": 10,
+    "hex": 16, "hexadecimal": 16,
+}
+VALID_RADIXES = (2, 8, 10, 16)
+
 
 class ExecutionCommand:
     """
@@ -87,6 +102,7 @@ class ExecutionCommand:
         self.count: int = 1
         self.fmt: str = "x"
         self.unit: int = 8
+        self.radix: int | None = None  # RADIX only; None means "show current"
         self._match_command_args(command, args or [])
 
     def _match_command_args(self, command: Command, args: list[str]):
@@ -126,6 +142,12 @@ class ExecutionCommand:
                 if args:
                     self.register = self._parse_register(args[0])
 
+            case Command.RADIX:
+                if len(args) > 1:
+                    raise InvalidCommandError("Usage: radix [2|8|10|16|bin|oct|dec|hex]")
+                if args:
+                    self.radix = self._parse_radix(args[0])
+
             case Command.EXAMINE:
                 if len(args) != 2:
                     raise InvalidCommandError(
@@ -152,9 +174,18 @@ class ExecutionCommand:
     @staticmethod
     def _parse_register(token: str) -> str:
         name = token.lstrip("$").lower()
-        if not re.fullmatch(REGISTER_PATTERN, name):
+        if name not in EXTRA_REGISTERS and not re.fullmatch(REGISTER_PATTERN, name):
             raise InvalidCommandError(f"Unknown register: '{name}'.")
         return name
+
+    @staticmethod
+    def _parse_radix(token: str) -> int:
+        base = RADIX_NAMES.get(token, int(token) if token.isdigit() else None)
+        if base not in VALID_RADIXES:
+            raise InvalidCommandError(
+                f"Unsupported radix '{token}'. Use 2, 8, 10, 16 or bin, oct, dec, hex."
+            )
+        return base
 
     def _parse_examine_spec(self, spec: str):
         m = EXAMINE_SPEC.fullmatch(spec)
@@ -203,6 +234,7 @@ class Debugger:
     def __init__(self, control_unit: Control_Unit):
         self.control_unit: Control_Unit = control_unit
         self.breakpoints: set[int] = set()
+        self.num_rep: int = 10  # base used for register output, changed by `radix`
 
     def read_command(self) -> ExecutionCommand:
         """Read a command from the user, prompting again until it is valid."""
@@ -255,11 +287,108 @@ class Debugger:
         sys.exit(0)
 
     # === Memory and Register Inspection ===
-    def _read_registers(self):
-        """Read and display the current state of all registers."""
+    def _read_registers(
+        self, register: str | None = None, num_rep: int | None = None
+    ) -> dict[str, int | str]:
+        """
+        Fetch the current value of one register, or of all of them.
 
-    def _examine_memory(self):
-        """Examine memory at a specified address."""
+        Reuses Control_Unit.get_state("registers"), so values come back with
+        the same signed handling and formatting as the other API: a plain int
+        for base 10, a prefixed string ("0x2a") for bases 2, 8 and 16. `rip`
+        and `eflags` (the whole flags register) are added to the result since
+        they are not part of the register map. Sub-registers (eax, ax, al, ...)
+        can be requested by name.
+
+        :param register: Register or flag name (case-insensitive, optional "$"). None returns everything.
+        :param num_rep: 2, 8, 10 or 16. None uses the debugger's current radix (see `radix`).
+        :return: Mapping of register/flag name to its value.
+        :raises InvalidCommandError: If the register does not exist or num_rep is unsupported.
+        """
+        if num_rep is None:
+            num_rep = self.num_rep
+        try:
+            state = self.control_unit.get_state("registers", num_rep)
+        except ValueError as e:
+            raise InvalidCommandError(str(e))
+        registers = self.control_unit.registers
+        state["rip"] = Control_Unit._format_value(self.control_unit.rip, 8, num_rep) # type: ignore
+        # read_flags returns the 32-bit flags register as little-endian bytes
+        eflags = int.from_bytes(registers.read_flags(), byteorder="little")
+        state["eflags"] = Control_Unit._format_value(eflags, 4, num_rep) # type: ignore
+
+        if register is None:
+            return state
+
+        name = register.lstrip("$").lower()
+        for key, value in state.items():
+            if key.lower() == name:
+                return {key: value}
+
+        # Not a 64-bit register or flag: try sub-registers (eax, ax, al, ...),
+        # which read_reg resolves to the right parent and width.
+        try:
+            size = registers.get_register_parent(name)[1]
+            return {name: Control_Unit._format_value(registers.read_reg(name), size, num_rep)} # type: ignore
+        except ValueError:
+            raise InvalidCommandError(f"Unknown register: '{register}'.")
+
+    def _resolve_address(self, command: ExecutionCommand) -> int:
+        """Return the absolute address an EXAMINE command points at, reading `$reg` if needed."""
+        if command.address_register is not None:
+            value = self._read_registers(command.address_register, num_rep=10)
+            (raw,) = value.values()
+            assert isinstance(raw, int)
+            return raw & 0xFFFFFFFFFFFFFFFF  # registers are read signed
+        assert command.address is not None
+        return command.address
+
+    def _examine_memory(
+        self, address: int, count: int = 1, unit: int = 8, fmt: str = "x"
+    ) -> dict[int, int | str]:
+        """
+        Fetch `count` consecutive units of `unit` bytes starting at `address`.
+
+        :param address: Absolute start address.
+        :param count: Number of units to read.
+        :param unit: Unit size in bytes (1, 2, 4 or 8).
+        :param fmt: 'x' hex string, 'd' signed int, 'u' unsigned int.
+        :return: Mapping of each unit's address to its value, in address order.
+        :raises InvalidCommandError: If a read fails (e.g. unmapped address).
+        """
+        values: dict[int, int | str] = {}
+        for i in range(count):
+            addr = address + i * unit
+            try:
+                data: bytes = self.control_unit.memory.read_bytes(addr, unit)  # type: ignore
+            except Exception as e:  # TODO: narrow to whatever read_bytes raises
+                raise InvalidCommandError(f"Cannot access memory at 0x{addr:x}: {e}")
+
+            if fmt == "u":
+                values[addr] = int.from_bytes(data, byteorder="little", signed=False)
+                continue
+            signed = int.from_bytes(data, byteorder="little", signed=True)
+            values[addr] = (
+                signed if fmt == "d" else Control_Unit._format_value(signed, unit, 16) # type: ignore
+            )
+        return values
+
+    # === Output Settings ===
+
+    def set_radix(self, base: int | None = None) -> int:
+        """
+        Change the numerical representation used when reading registers, or
+        just query it when no base is given.
+
+        :param base: 2, 8, 10 or 16. None leaves the setting unchanged.
+        :return: The base now in effect.
+        :raises InvalidCommandError: If the base is not supported.
+        """
+        if base is not None:
+            if base not in VALID_RADIXES:
+                raise InvalidCommandError(f"Unsupported radix '{base}'.")
+            self.num_rep = base
+        return self.num_rep
 
     # === Command Matching ===
 
@@ -312,7 +441,7 @@ class Debugger:
             return aliases[word]
         if word in names:
             return names[word]
-        # If no exact match, look for a unique prefix
+        # If no exact match, look for unique prefixes.
         matches = {value for name, value in names.items() if name.startswith(word)}
         if len(matches) == 1:
             return matches.pop()

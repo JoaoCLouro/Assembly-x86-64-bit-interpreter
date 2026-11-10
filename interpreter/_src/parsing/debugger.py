@@ -2,17 +2,17 @@
 Debugging utilities for the parser.
 """
 
+import re
 import sys
+from collections.abc import Mapping
 from enum import Enum
 
 from interpreter._src.parsing.control_unit import Control_Unit
+from interpreter._src.parsing.patter_matching_helpers import REGISTER_PATTERN
 
 
 class InvalidCommandError(Exception):
     """Raised when an invalid command is entered in the debugger."""
-
-    def __init__(self, command: str):
-        print(f"Invalid command: {command}. Type 'help' for a list of commands.")
 
 
 class Command(Enum):
@@ -22,7 +22,7 @@ class Command(Enum):
     STEP = "step instruction"
     CONTINUE = "continue"
     BREAK = "break"
-    DELETE = " delete"
+    DELETE = "delete"
     INFO_BREAKPOINTS = "info breakpoints"
     INFO_REGISTERS = "info registers"
     EXAMINE = "x"
@@ -30,29 +30,164 @@ class Command(Enum):
     QUIT = "quit"
 
 
+# "info" is a prefix command with its own subcommands, so it is matched as a
+# sentinel next to the Command members (this makes "in" / "inf" work).
+INFO = "info"
+
+# Exact aliases, checked before prefix matching so "s" or "c" are never ambiguous.
+ALIASES: dict[str, Command | str] = {
+    "r": Command.RUN,
+    "s": Command.STEP,
+    "si": Command.STEP,
+    "stepi": Command.STEP,
+    "c": Command.CONTINUE,
+    "b": Command.BREAK,
+    "d": Command.DELETE,
+    "i": INFO,
+    "h": Command.HELP,
+    "q": Command.QUIT,
+    "exit": Command.QUIT,
+}
+
+# Subcommands of "info", also matched by unique prefix.
+INFO_SUBCOMMANDS: dict[str, Command] = {
+    "registers": Command.INFO_REGISTERS,
+    "breakpoints": Command.INFO_BREAKPOINTS,
+}
+INFO_ALIASES: dict[str, Command] = {
+    "r": Command.INFO_REGISTERS,
+    "reg": Command.INFO_REGISTERS,
+    "b": Command.INFO_BREAKPOINTS,
+}
+
+# x/NFU: N = count, F = format, U = unit size (GDB letters).
+UNIT_SIZES = {"b": 1, "h": 2, "w": 4, "g": 8}
+FORMATS = {"x", "d", "u"}
+EXAMINE_SPEC = re.compile(r"(\d*)([bhwgxdu]*)")
+
+
 class ExecutionCommand:
+    """
+    A validated debugger command, ready to be executed.
+
+    After construction, only the fields relevant to the command are set:
+        - BREAK / DELETE:    `line`
+        - INFO_REGISTERS:    `register` (None means "all registers")
+        - EXAMINE:           `count`, `fmt`, `unit`, and the address as either
+                             `address` (a number) or `address_register`
+                             (a register name, resolved when executed)
+    """
+
     def __init__(self, command: Command, args: list[str]):
         self.command = command
+        self.line: int | None = None
+        self.register: str | None = None
+        self.address: int | None = None
+        self.address_register: str | None = None
+        self.count: int = 1
+        self.fmt: str = "x"
+        self.unit: int = 8
         self._match_command_args(command, args or [])
 
     def _match_command_args(self, command: Command, args: list[str]):
         """
-        Match the command with its expected arguments.
-        """
+        Validate the arguments for `command` and store them on this object.
 
+        For EXAMINE, `args` is [spec, address] where `spec` is the text after
+        the slash in "x/4gx" (empty string for a bare "x").
+
+        :raises InvalidCommandError: on missing, extra, or malformed arguments.
+        """
         match command:
-            case Command.INFO_BREAKPOINTS:
-                pass
+            case (
+                Command.RUN
+                | Command.CONTINUE
+                | Command.HELP
+                | Command.QUIT
+                | Command.INFO_BREAKPOINTS
+            ):
+                if args:
+                    raise InvalidCommandError(
+                        f"'{command.value}' takes no arguments."
+                    )
+
+            case Command.STEP:
+                if args not in ([], ["instruction"]):
+                    raise InvalidCommandError("Usage: step instruction")
+
+            case Command.BREAK | Command.DELETE:
+                if len(args) != 1:
+                    raise InvalidCommandError(f"Usage: {command.value} LINE_NUMBER")
+                self.line = self._parse_line(args[0])
+
             case Command.INFO_REGISTERS:
+                if len(args) > 1:
+                    raise InvalidCommandError("Usage: info registers [REGISTER]")
                 if args:
-                    pass
+                    self.register = self._parse_register(args[0])
+
             case Command.EXAMINE:
-                if args:
-                    pass
+                if len(args) != 2:
+                    raise InvalidCommandError(
+                        "Usage: x/NFU ADDRESS  (e.g. x/4gx $rsp, x/2dw 0x1000)"
+                    )
+                self._parse_examine_spec(args[0])
+                self._parse_address(args[1])
+
             case _:
                 print(
                     "[DEBUG]: Clause not exhaustive enough! Report to the developers."
                 )
+
+    # --- Argument helpers ---
+
+    @staticmethod
+    def _parse_line(token: str) -> int:
+        if not token.isdigit() or int(token) < 1:
+            raise InvalidCommandError(
+                f"Line number must be a positive integer, got '{token}'."
+            )
+        return int(token)
+
+    @staticmethod
+    def _parse_register(token: str) -> str:
+        name = token.lstrip("$").lower()
+        if not re.fullmatch(REGISTER_PATTERN, name):
+            raise InvalidCommandError(f"Unknown register: '{name}'.")
+        return name
+
+    def _parse_examine_spec(self, spec: str):
+        m = EXAMINE_SPEC.fullmatch(spec)
+        if not m:
+            raise InvalidCommandError(
+                f"Invalid format '/{spec}'. Use /NFU: count, format (x d u), "
+                "unit (b h w g)."
+            )
+        if m.group(1):
+            self.count = int(m.group(1))
+            if self.count < 1:
+                raise InvalidCommandError("Count must be at least 1.")
+        for ch in m.group(2):
+            if ch in UNIT_SIZES:
+                self.unit = UNIT_SIZES[ch]
+            else:
+                self.fmt = ch
+
+    def _parse_address(self, token: str):
+        if token.startswith("$"):
+            self.address_register = self._parse_register(token)
+            return
+        try:
+            value = int(token, 0)  # accepts 0x1000 and 4096
+        except ValueError:
+            raise InvalidCommandError(f"Invalid address: '{token}'.")
+        if value < 0:
+            raise InvalidCommandError("Address cannot be negative.")
+        self.address = value
+
+    def __repr__(self) -> str:
+        fields = {k: v for k, v in vars(self).items() if k != "command" and v is not None}
+        return f"ExecutionCommand({self.command.name}, {fields})"
 
 
 class Debugger:
@@ -70,13 +205,15 @@ class Debugger:
         self.breakpoints: set[int] = set()
 
     def read_command(self) -> ExecutionCommand:
-        """Read a command from the user."""
-        command = input("(debugger) ").strip()
-        try:
-            return self._match_command(command)
-        except InvalidCommandError as e:
-            print(e)
-            return self.read_command()  # Prompt again for a valid command
+        """Read a command from the user, prompting again until it is valid."""
+        while True:
+            line = input("(debugger) ").strip()
+            if not line:
+                continue
+            try:
+                return self._match_command(line)
+            except InvalidCommandError as e:
+                print(e)
 
     # === Breakpoint Management ===
 
@@ -95,7 +232,7 @@ class Debugger:
         else:
             print("Current breakpoints:")
             for bp in sorted(self.breakpoints):
-                print(f"  Line {bp + 1}\n")
+                print(f"  Line {bp + 1}")
 
     # === Execution Control ===
 
@@ -126,27 +263,61 @@ class Debugger:
 
     # === Command Matching ===
 
-    def _match_command(self, command: str) -> ExecutionCommand:
+    def _match_command(self, line: str) -> ExecutionCommand:
         """
-        Approximate the user input to a Command enum using fuzzy matching.
-        If the input is ambiguous or does not match any command, raise an InvalidCommandError.
-        Should handle partial matches and case insensitivity.
-        Should also handle commands with arguments, like "info registers rax".
+        Turn a raw input line into a validated ExecutionCommand.
 
-        :param command: The user input command string.
-        :type command: str
-        :return: The matched Command enum.
-        :rtype: Command
-        :raises InvalidCommandError: If the input is ambiguous or does not match any command.
+        Handles case insensitivity, aliases, unique-prefix matching
+        (e.g. "inf re" -> "info registers"), and x/NFU memory examination.
+
+        :param line: The user input command string.
+        :return: The matched and argument-validated ExecutionCommand.
+        :raises InvalidCommandError: If the input is ambiguous, unknown, or
+            has invalid arguments.
         """
-        # TODO: Implement fuzzy matching logic here. For now, we will use a simple approach.
-        possible_commands = [
-            cmd for cmd in Command if cmd.value.startswith(command.lower())
-        ]
+        tokens = line.lower().split()
+        if not tokens:
+            raise InvalidCommandError("Empty command. Type 'help' for a list of commands.")
+        head, rest = tokens[0], tokens[1:]
 
-        if len(possible_commands) == 1:
-            return possible_commands[0]
-        elif len(possible_commands) > 1:
-            raise InvalidCommandError(f"Command '{command}' is ambiguous.")
-        else:
-            raise InvalidCommandError(f"Command '{command}' is not recognized.")
+        # x/NFU ADDRESS: the format spec rides on the command word itself.
+        if head == "x" or head.startswith("x/"):
+            return ExecutionCommand(Command.EXAMINE, [head[2:]] + rest)
+
+        names: dict[str, Command | str] = {
+            c.value.split()[0]: c for c in Command if not c.value.startswith("info")
+        }
+        names[INFO] = INFO
+        command = self._resolve(head, ALIASES, names)
+
+        if command == INFO:
+            if not rest:
+                raise InvalidCommandError(
+                    "Usage: info registers [REGISTER] | info breakpoints"
+                )
+            command = self._resolve(rest[0], INFO_ALIASES, INFO_SUBCOMMANDS)
+            rest = rest[1:]
+
+        assert isinstance(command, Command)
+        return ExecutionCommand(command, rest)
+
+    @staticmethod
+    def _resolve(
+        word: str,
+        aliases: Mapping[str, Command | str],
+        names: Mapping[str, Command | str],
+    ) -> Command | str:
+        """Exact alias first, then exact name, then unique prefix."""
+        if word in aliases:
+            return aliases[word]
+        if word in names:
+            return names[word]
+        # If no exact match, look for a unique prefix
+        matches = {value for name, value in names.items() if name.startswith(word)}
+        if len(matches) == 1:
+            return matches.pop()
+        if matches:
+            raise InvalidCommandError(f"Command '{word}' is ambiguous.")
+        raise InvalidCommandError(
+            f"Invalid command: '{word}'. Type 'help' for a list of commands."
+        )

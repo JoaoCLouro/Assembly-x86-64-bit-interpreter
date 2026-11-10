@@ -96,7 +96,8 @@ MASKS_DIRECTIVES = {
 # ----------------------------------------
 
 COMPONENTS_ADDRESSING_PATTERN = r"(0x[\da-fA-F]+|[a-zA-Z_][a-zA-Z0-9_]*|\d+)"
-GENERAL_PURPOSE_REGISTERS_PATTERN = r"([er]?[abcd]x|[er]?[sb]p|[er]?[sd]i|[er]?ip|r[89][bdlw]?|r1[0-5][bdlw]?|[abcd][hl])"
+# The 8-bit forms sil/dil/bpl/spl come first so a non-anchored match doesn't stop at si/di/bp/sp.
+GENERAL_PURPOSE_REGISTERS_PATTERN = r"([sd]il|[sb]pl|[er]?[abcd]x|[er]?[sb]p|[er]?[sd]i|[er]?ip|r[89][bdlw]?|r1[0-5][bdlw]?|[abcd][hl])"
 FPU_REGISTERS_PATTERN = r"(ymm[0-9]|xmm[0-9]|ymm1[0-5]|xmm1[0-5])"
 NUMBER_REPRESENTATION_PATTERN = r"([-+]?(?:0[xX][\da-fA-F]+|\d[\da-fA-F]*[hH]|0[bB][01]+|[01]+[bB]|0[dD]\d+|\d+[dD]|[0-7]+[oOqQ]|\d+))"
 WORD_OR_CHARACTERS_PATTERN = r"(\".*?\"|\'.*?\')"

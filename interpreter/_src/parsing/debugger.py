@@ -2,10 +2,10 @@
 Debugging utilities for the parser.
 """
 
+from collections.abc import Mapping
 import re
 import sys
 from enum import Enum
-from typing import Mapping
 
 from interpreter._src.parsing.control_unit import Control_Unit
 from interpreter._src.parsing.patter_matching_helpers import REGISTER_PATTERN
@@ -165,7 +165,8 @@ class ExecutionCommand:
 
     @staticmethod
     def _parse_line(token: str) -> int:
-        if not token.isdigit() or int(token) < 1:
+        # isascii() matters: "²".isdigit() is True but int("²") raises
+        if not (token.isascii() and token.isdigit()) or int(token) < 1:
             raise InvalidCommandError(
                 f"Line number must be a positive integer, got '{token}'."
             )
@@ -180,7 +181,8 @@ class ExecutionCommand:
 
     @staticmethod
     def _parse_radix(token: str) -> int:
-        base = RADIX_NAMES.get(token, int(token) if token.isdigit() else None)
+        is_number = token.isascii() and token.isdigit()
+        base = RADIX_NAMES.get(token, int(token) if is_number else None)
         if base not in VALID_RADIXES:
             raise InvalidCommandError(
                 f"Unsupported radix '{token}'. Use 2, 8, 10, 16 or bin, oct, dec, hex."
@@ -431,17 +433,12 @@ class Debugger:
         return ExecutionCommand(command, rest)
 
     @staticmethod
-    def _resolve(
-        word: str,
-        aliases: Mapping[str, Command | str],
-        names: Mapping[str, Command | str],
-    ) -> Command | str:
+    def _resolve(word: str, aliases: Mapping[str, Command | str], names: Mapping[str, Command | str]) -> Command | str:
         """Exact alias first, then exact name, then unique prefix."""
         if word in aliases:
             return aliases[word]
         if word in names:
             return names[word]
-        # If no exact match, look for unique prefixes.
         matches = {value for name, value in names.items() if name.startswith(word)}
         if len(matches) == 1:
             return matches.pop()

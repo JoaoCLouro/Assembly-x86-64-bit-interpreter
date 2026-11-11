@@ -3,12 +3,12 @@
 import os
 import sys
 
-from interpreter._src.helpers.storage import Storage
-from interpreter._src.parsing.control_unit import Control_Unit
-from interpreter._src.parsing.segment_mapper import Segment_Mapper
-from interpreter.exit_codes import ExitCode
-from interpreter._src.clis.debug import DebugCLI
-from interpreter._src.parsing.debugger import Debugger
+from ._src.clis.debug import DebugCLI
+from ._src.helpers.storage import Storage
+from ._src.parsing.control_unit import Control_Unit
+from ._src.parsing.debugger import Debugger
+from ._src.parsing.segment_mapper import Segment_Mapper
+from .exit_codes import ExitCode
 
 HELP_TEXT = """\
 Usage: python main.py <path-to-assembly-file> [flags] [-- program-args...]
@@ -44,6 +44,7 @@ def main():
     Requires a file path as a command line argument or user input.
     Prompts for command line arguments after validating the file path.\n
     CLI Usage: python main.py /path/to/assembly_file.asm -d (debugging_flags) -- <interpreter_arguments>\n
+    The -- flag is used to separate the interpreter's arguments from the assembly file path.\n
     Supported interpreter arguments:]\n -d (debugging_flags)\n -s (strick mode)  -- (separates interpreter arguments from the assembly file path)\n
     -r/--num-rep <base>, -o/--output <path>, -q/--quiet, -h/--help\n
     Debugging flags can be set to enable or disable debugging mode.\n

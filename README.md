@@ -1,7 +1,7 @@
 # Assembly x86 64 bit python Interpreter
 
 A simple assembly x86 64-bit interpreter with sequential execution and error detection.
-
+For details on the installation and usage of the debugger go to the [Executable installation and usage](#executable-installation--usage) section.
 
 ## About the Project
 
@@ -48,6 +48,7 @@ interpreter can actually execute anything.
 ### 2. From Source
 
 Clone the repository:
+
 ```bash
 git clone https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter.git
 cd Assembley-x86-64-bit-interpreter
@@ -55,6 +56,7 @@ cd Assembley-x86-64-bit-interpreter
 
 Create and activate a virtual environment (recommended, keeps the
 project's dependencies isolated from your system Python):
+
 ```bash
 python3 -m venv .venv
 
@@ -65,6 +67,7 @@ source .venv/bin/activate.fish
 ```
 
 Install the project in editable mode:
+
 ```bash
 pip install -e .
 ```
@@ -74,20 +77,24 @@ pip install -e .
 Required for both installation methods above — this compiles
 `libreg.so`, `libmmu.so`, `liboperations.so`, and `libscl.so` into
 `interpreter/_src/lib/`:
+
 ```bash
 make clean && make
 ```
 
 Verify the install resolved correctly:
+
 ```bash
 python -c "import interpreter; print(interpreter.__file__)"
 ```
+
 This should print a path inside your cloned repository.
 
 ### 4. Running the test suite (optional)
 
 The test suite uses `pytest`, which isn't installed automatically by
 either method above:
+
 ```bash
 pip install pytest
 pytest tests/ -v
@@ -95,12 +102,74 @@ pytest tests/ -v
 
 Alternatively, build local distribution wheels yourself instead of using
 a pre-built release:
+
 ```bash
 python -m pip install pyproject-build
 pyproject-build
 pip install dist/cpu_simulator-0.3.2-py3-none-any.whl
 ```
 
+---
+
+## Executable Installation & Usage
+
+This project includes automated scripts to safely install the application within an isolated virtual environment and expose a global `x86-idg (x86-interpreter-debugger)` command to your system.
+
+### Prerequisites
+
+- **Python 3** (Ensure `python3` is available in your PATH)
+- *(Optional)* **[uv](https://github.com/astral-sh/uv)** for drastically faster dependency resolution.
+
+### Installation
+
+The `install.sh` script handles setting up the virtual environment, installing dependencies, and creating a global executable wrapper in `~/.local/bin`.
+
+1. Give execution permissions to the scripts:
+   ```bash
+   chmod +x install.sh uninstall.sh
+   ```
+
+2. Run the installation script:
+   - **Standard Install (Uses standard `pip` and `venv`):**
+     ```bash
+     ./install.sh
+     ```
+   - **Fast Install (Uses `uv` package manager):**
+     ```bash
+     PKG_MGR=uv ./install.sh
+     ```
+
+**Note on `$PATH`:** The installer places the `x86-idg` binary in `~/.local/bin`. If your system does not already have this directory in its path, you will see a warning.
+- *Bash/Zsh users:* Add `export PATH="$HOME/.local/bin:$PATH"` to your `~/.bashrc` or `~/.zshrc`.
+- *Fish users:* Run `fish_add_path ~/.local/bin`.
+
+### Usage
+
+Once installed, you can run the interpreter and debugger from *any* directory on your system without needing to manually activate the virtual environment.
+
+**Run a file normally:**
+```bash
+x86-idg path/to/your/file.asm
+```
+
+**Run a file in Debugger UI mode:**
+```bash
+x86-idg path/to/your/file.asm -d
+```
+
+Any arguments you pass to `x86-idg` are automatically forwarded to the underlying `runner.py` script.
+
+### Uninstallation
+
+To cleanly remove the global CLI wrapper and desktop shortcuts from your system, run the uninstallation script from the project directory:
+
+```bash
+./uninstall.sh
+```
+
+During uninstallation, you will be prompted and can optionally choose to delete the project's local `.venv` directory to free up disk space.
+
+---
 
 ## Quick Start & Usage
 

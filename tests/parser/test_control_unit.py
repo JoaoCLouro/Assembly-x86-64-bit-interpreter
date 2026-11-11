@@ -463,36 +463,6 @@ class TestRun:
 
         assert call_count["n"] == 3
 
-    def test_run_checks_trap_flag_each_iteration(self, control_unit, monkeypatch):
-        control_unit.rip = -1
-        control_unit.registers.read_trap_flag.return_value = 0
-
-        def fake_step(self):
-            self.finished = True
-
-        monkeypatch.setattr(Control_Unit, "_step", fake_step)
-
-        control_unit.run()
-
-        control_unit.registers.read_trap_flag.assert_called()
-
-    def test_run_enters_debug_command_when_trap_flag_set(
-        self, control_unit, monkeypatch
-    ):
-        control_unit.rip = -1
-        control_unit.registers.read_trap_flag.return_value = 1
-        debug_called = {"called": False}
-
-        def fake_debug(self):
-            debug_called["called"] = True
-            self.finished = True
-
-        monkeypatch.setattr(Control_Unit, "_execute_state_command", fake_debug)
-        monkeypatch.setattr(Control_Unit, "_step", lambda self: None)
-
-        control_unit.run()
-
-        assert debug_called["called"] is True
 
     def test_run_catches_exceptions_from_step_and_marks_finished(
         self,

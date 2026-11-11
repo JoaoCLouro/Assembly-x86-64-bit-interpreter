@@ -21,7 +21,7 @@ class Interpreter_x86:
     __slots__ = ["cpu", "loader", "memory", "register", "state", "state_code"]
 
     def __init__(
-        self, file_name: str | None, args: list[str] | None, debugging: bool = False
+        self, file_name: str | None, args: list[str] | None
     ):
         """
         Initializes and runs the interpreter.\n
@@ -43,7 +43,7 @@ class Interpreter_x86:
         )
         self.memory = self.loader.memory
         self.register = self.loader.registers
-        self.cpu: Control_Unit = Control_Unit(self.loader, debugging)
+        self.cpu: Control_Unit = Control_Unit(self.loader)
 
     def __del__(self):
         # Triggers all state variables cleanup

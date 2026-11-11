@@ -65,7 +65,7 @@ class Control_Unit:
         "text_section",
     ]
 
-    def __init__(self, loader: Segment_Mapper, debugging: bool = False) -> None:
+    def __init__(self, loader: Segment_Mapper) -> None:
         # Initialize Control Unit with memory, segment mapper, functional units and registers (general purpose, fpu and flags)
         self.registers: Registers_Interface = loader.registers
         self.memory: Data_Memory = loader.memory
@@ -80,9 +80,6 @@ class Control_Unit:
         self.rip: int = (
             loader.rip
         )  # Instruction Pointer initialized from Segment Mapper
-        # Turns debugging on
-        if debugging:
-            self.registers.Exch_trap_flag()
 
         # Parsed sections from segment_mapper
         self.text_section: list[list[str]] = loader.memory_list
@@ -127,10 +124,6 @@ class Control_Unit:
         self.rip += 1
         # Improve this loop to enable debugging features
         while not self.finished:
-            # Debugging feature: Trap flag verification. If the trap flag is raised, execute the trap flag command and halt execution before executing the instruction in the current line.
-            if self.registers.read_trap_flag() == 1:
-                # Should allow for gdb command actions
-                self._execute_state_command()
             try:
                 self._step()
             except CPUException as e:  # Debugging Exception
@@ -343,90 +336,6 @@ class Control_Unit:
         return INSTRUCTIONS[self.current_fu][self.current_instruction] == (
             self.op1.is_valid() + self.op2.is_valid()
         )
-
-    # -------------------
-    # DEBUGGING METHODS
-    # -------------------
-
-    def _execute_state_command(self) -> None:
-        """
-        Cyclically asks for user input to execute commands to print the state of the program in execution.\n
-        Commands are:\n
-        - 'registers': prints the state of the registers
-        - 'memory': prints the state of the memory
-        - 'data': prints the state of the data section
-        - 'rodata': prints the state of the rodata section
-        - 'bss': prints the state of the bss section
-        - 'constants': prints the state of the constants declared
-        - 'rip': prints the current value of the rip register
-        - 'fu': prints the current functional unit in use
-        - 'help': prints the list of commands available
-        - 'step' : executes the instruction at the current rip and updates the state of the program accordingly (to be used to execute step by step)
-        - 'exit': exits the program and stops execution
-        If an invalid command is given it will print an error message and ask for a new command.
-        """
-        while True:  # Transform into a case switch
-            command: str = input(
-                "Enter a command to print the state of the program or 'help' to see the list of commands available: "
-            )
-            if command == "registers":
-                print(self.registers)
-
-            elif command == "memory":
-                print("\n--//--\ndata section:\n")
-                self._print_section(self.data_section)
-                print("\n--//--\nrodata section:\n")
-                self._print_section(self.rodata_section)
-                print("\n--//--\nbss section:\n")
-                self._print_section(self.bss_section)
-                print("\n--//--\n")
-
-            elif command == "data":
-                print("\n--//--\ndata section:\n")
-                self._print_section(self.data_section)
-                print("\n--//--\n")
-
-            elif command == "rodata":
-                print("\n--//--\nrodata section:\n")
-                self._print_section(self.rodata_section)
-                print("\n--//--\n")
-
-            elif command == "bss":
-                print("\n--//--\nbss section:\n")
-                self._print_section(self.bss_section)
-                print("\n--//--\n")
-
-            elif command == "rip":
-                print("\n--//--\n")
-                print(f"Current value of rip: {self.rip}")
-                print("\n--//--\n")
-
-            elif command == "fu":
-                print("\n--//--\n")
-                print(f"Current functional unit in use: {self.current_fu}")
-                print("\n--//--\n")
-
-            elif command == "help":
-                print("\n--//--\n")
-                print(
-                    "List of commands available:\n- 'registers': prints the state of the registers\n- 'memory': prints the state of the memory\n- 'data': prints the state of the data section\n- 'rodata': prints the state of the rodata section\n- 'bss': prints the state of the bss section\n- 'rip': prints the current value of the rip register\n- 'fu': prints the current functional unit in use\n- 'help': prints this list of commands available\n- 'step': steps into the next instruction in the execution\n- 'continue': continues with the normal execution exiting debug mode\n- 'exit': exits the program and stops execution"
-                )
-                print("\n--//--\n")
-
-            elif command == "step":
-                return
-
-            elif command == "run":
-                self.registers.Exch_trap_flag()
-                return
-
-            elif command == "exit":
-                print("Exiting program and stopping execution...")
-                sys.exit(0)
-            else:
-                print(
-                    "Invalid command! Enter 'help' to see the list of commands available."
-                )
 
     def _print_section(self, section: DataSectionInfo | BssSectionInfo) -> None:
         """

@@ -7,6 +7,8 @@ from interpreter._src.helpers.storage import Storage
 from interpreter._src.parsing.control_unit import Control_Unit
 from interpreter._src.parsing.segment_mapper import Segment_Mapper
 from interpreter.exit_codes import ExitCode
+from interpreter._src.clis.debug import DebugCLI
+from interpreter._src.parsing.debugger import Debugger
 
 HELP_TEXT = """\
 Usage: python main.py <path-to-assembly-file> [flags] [-- program-args...]
@@ -61,7 +63,15 @@ def main():
 
     Storage.clean_cache()  # Clean cache before starting
 
-    file = get_file()
+    file: str = ""
+
+    if len(sys.argv) < 2:
+        file = get_file()
+    else:
+        file = sys.argv[1]
+        if not valid_file(file):
+            file = get_file()
+
     # seen_flags lookup:
     # first index = debugging_flags, second index = strick_mode
     # first index of each = seen, second index of each = enabled
@@ -84,16 +94,21 @@ def main():
         debugging = False
     else:
         debugging = is_debugging()
-    cpu: Control_Unit = Control_Unit(loader, debugging)
-    exit_code = cpu.run()
-    state = cpu.get_state("all", num_rep)
+    cpu: Control_Unit = Control_Unit(loader)
 
-    if not quiet:
-        print(f"CPU State Code: \n {exit_code}")
-        print(f"Final State: \n {state}")
+    if debugging:
+        debugger: Debugger = Debugger(cpu)
+        debug_cli: DebugCLI = DebugCLI(debugger)
+        debug_cli.run()
+    else:
+        exit_code: ExitCode = cpu.run()
+        state: dict[str, int | str] = cpu.get_state("all", num_rep)
+        if not quiet:
+            print(f"CPU State Code: \n {exit_code}")
+            print(f"Final State: \n {state}")
 
-    if output_path is not None:
-        export_state(output_path, state, exit_code)
+        if output_path is not None:
+            export_state(output_path, state, exit_code)
 
 
 def get_file() -> str:

@@ -1,0 +1,92 @@
+Screen {
+    layout: horizontal;
+    background: $background;
+    color: $text;
+}
+
+/* Left Panel: Program Source */
+.program {
+    width: 30%;  /* Reduced from 45% */
+    height: 100%;
+    border: round $primary;
+    border-title-color: $accent;
+    border-title-style: bold;
+    background: $surface;
+    padding: 1 2;
+    overflow-y: scroll;
+    overflow-x: auto;
+}
+
+/* Center Panel: Help, Logs & Input */
+.center_panel {
+    width: 50%;  /* Increased from 35% to fit help text cleanly */
+    height: 100%;
+}
+
+.help_wrapper {
+    width: 100%;
+    height: 35%; /* Fixed percentage height for the help window */
+    border: round $success;
+    border-title-color: $success-lighten-2;
+    border-title-style: bold;
+    background: $surface-darken-1;
+    padding: 1 2;
+    overflow-y: scroll;
+    overflow-x: auto;
+}
+
+.help_text {
+    color: $text-muted;
+}
+
+.debug_wrapper {
+    width: 100%;
+    height: 1fr; /* Expands to fill remaining center space */
+    border: round $secondary;
+    border-title-color: $secondary-lighten-2;
+    border-title-style: bold;
+    background: $surface-darken-1;
+}
+
+.debug_output {
+    padding: 1 2;
+    background: transparent;
+    color: $text-muted;
+}
+
+#debug_input {
+    width: 100%;
+    height: auto;
+    border: round $accent;
+    border-title-color: $accent;
+    background: $surface-lighten-1;
+    color: $text;
+    margin-top: 1;
+}
+
+#debug_input:focus {
+    border: double $accent;
+    background: $surface-lighten-2;
+}
+
+/* Right Panel: Registers */
+.registers {
+    width: 20%;
+    height: 100%;
+    border: round $warning;
+    border-title-color: $warning-lighten-1;
+    border-title-style: bold;
+    background: $surface;
+    padding: 1 2;
+    overflow-y: scroll;
+    overflow-x: auto;
+}
+
+ScrollBar {
+    background: transparent;
+    color: $primary-muted;
+}
+
+ScrollBar:hover {
+    color: $primary;
+}

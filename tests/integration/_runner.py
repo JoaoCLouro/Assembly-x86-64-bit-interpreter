@@ -49,7 +49,7 @@ _PROJECT_ROOT = _find_project_root(_THIS_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from interpreter import Interpreter
+from interpreter import Interpreter # type: ignore
 
 
 def main() -> None:

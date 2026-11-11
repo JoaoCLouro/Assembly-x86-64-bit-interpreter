@@ -7,7 +7,9 @@ name = "cpu-simulator"
 version = "0.3.2"
 description = "x86-64 assembly interpreter (Python + C)"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "textual>=8.2.8",
+]
 
 [project.optional-dependencies]
 test = [

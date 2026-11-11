@@ -9,7 +9,7 @@ directly, rather than only checking register state.
 
 import pytest
 
-from conftest import LIBS_PRESENT
+from interpreter._paths import LIBS_PRESENT
 
 pytestmark = pytest.mark.skipif(
     not LIBS_PRESENT, reason="libreg.so / libmmu.so not built"

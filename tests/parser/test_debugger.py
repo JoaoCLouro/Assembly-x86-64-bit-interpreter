@@ -19,10 +19,15 @@ the rest of the debugger supports.
 
 import builtins
 import importlib
+from typing import ClassVar
 
 import pytest
 
 DEBUGGER_MODULE = "interpreter._src.parsing.debugger"
+
+# What the fake memory raises when asked for an unmapped address: the same
+# exception Data_Memory.read_bytes raises, and the one examine_memory catches.
+UNMAPPED_ERROR: type[Exception] = MemoryError
 
 dbg = importlib.import_module(DEBUGGER_MODULE)
 Command = dbg.Command
@@ -50,11 +55,11 @@ FAKE_REGISTER_PATTERN = (
 class FakeRegisters:
     """Mimics the parts of Registers_Interface the debugger touches."""
 
-    GPRS = [
+    GPRS: ClassVar[list[str]] = [
         "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp",
         "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
     ]  # fmt: skip
-    SUBREGS = {
+    SUBREGS: ClassVar[dict[str, tuple[str, int]]] = {
         "eax": ("rax", 4),
         "ax": ("rax", 2),
         "al": ("rax", 1),
@@ -110,7 +115,7 @@ class FakeRegisters:
 
 
 class FakeMemory:
-    """Byte-addressable memory; reading an unmapped byte raises IndexError."""
+    """Byte-addressable memory; reading an unmapped byte raises UNMAPPED_ERROR."""
 
     def __init__(self, regions=None):
         self.bytes: dict[int, int] = {}
@@ -122,7 +127,7 @@ class FakeMemory:
         out = bytearray()
         for a in range(address, address + size):
             if a not in self.bytes:
-                raise IndexError(f"address 0x{a:x} is not mapped")
+                raise UNMAPPED_ERROR(f"address 0x{a:x} is not mapped")
             out.append(self.bytes[a])
         return bytes(out)
 
@@ -381,7 +386,7 @@ class TestExecutionCommandDefaults:
 
 
 class TestNoArgumentCommands:
-    NO_ARGS = [
+    NO_ARGS: ClassVar[list[Command]] = [
         Command.RUN, Command.CONTINUE, Command.HELP, Command.QUIT,
         Command.INFO_BREAKPOINTS,
     ]  # fmt: skip
@@ -525,7 +530,9 @@ class TestExamineArguments:
         cmd = ExecutionCommand(Command.EXAMINE, ["", token])
         assert cmd.address == expected and cmd.address_register is None
 
-    @pytest.mark.parametrize("token, name", [("$rsp", "rsp"), ("$RSP", "rsp"), ("$r8", "r8")])
+    @pytest.mark.parametrize(
+        "token, name", [("$rsp", "rsp"), ("$RSP", "rsp"), ("$r8", "r8")]
+    )
     def test_register_addresses(self, token, name):
         cmd = ExecutionCommand(Command.EXAMINE, ["", token])
         assert cmd.address_register == name and cmd.address is None
@@ -682,8 +689,6 @@ class TestExecutionControl:
         assert cu.rip == 2
         debugger.continue_execution()
         assert cu.rip == 5
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -911,6 +916,15 @@ class TestExamineMemory:
         with pytest.raises(InvalidCommandError, match="0x1010"):
             mem_debugger.examine_memory(0x1000, 5, 4, "x")
 
+    def test_other_memory_errors_are_not_swallowed(self, cu):
+        class BrokenMemory:
+            def read_bytes(self, address, size):
+                raise RuntimeError("a real bug in the memory model")
+
+        cu.memory = BrokenMemory()
+        with pytest.raises(RuntimeError, match="real bug"):
+            Debugger(cu).examine_memory(0x1000, 1, 4, "x")
+
     def test_unit_straddling_the_end_of_memory_fails(self, mem_debugger):
         with pytest.raises(InvalidCommandError):
             mem_debugger.examine_memory(0x100C, 1, 8, "x")
@@ -1015,9 +1029,7 @@ class TestEndToEnd:
         cu = FakeControlUnit(memory=FakeMemory({0x1000: MEMORY_BYTES}))
         d = Debugger(cu)
         cmd = parse("x/2dw $rsp")
-        values = d.examine_memory(
-            d.resolve_address(cmd), cmd.count, cmd.unit, cmd.fmt
-        )
+        values = d.examine_memory(d.resolve_address(cmd), cmd.count, cmd.unit, cmd.fmt)
         assert values == {0x1000: 0x12345678, 0x1004: -1}
 
     def test_examine_a_fixed_address_in_hex_after_radix_change(self):
@@ -1025,9 +1037,7 @@ class TestEndToEnd:
         d = Debugger(cu)
         d.set_radix(16)  # must not break register-based addressing
         cmd = parse("x/gx $rsp")
-        values = d.examine_memory(
-            d.resolve_address(cmd), cmd.count, cmd.unit, cmd.fmt
-        )
+        values = d.examine_memory(d.resolve_address(cmd), cmd.count, cmd.unit, cmd.fmt)
         assert values == {0x1000: "0xffffffff12345678"}
 
     def test_break_then_continue_then_inspect(self, debugger, cu):
@@ -1064,7 +1074,9 @@ class TestRealRegisterPattern:
         # let them through for that to be reachable.
         assert ExecutionCommand(Command.INFO_REGISTERS, [name]).register == name
 
-    @pytest.mark.parametrize("name", ["si", "di", "bp", "sp", "sil", "dil", "bpl", "spl"])
+    @pytest.mark.parametrize(
+        "name", ["si", "di", "bp", "sp", "sil", "dil", "bpl", "spl"]
+    )
     def test_irregular_sub_registers_are_accepted(self, name):
         # Registers_Interface handles these through EXTENDED_16BIT and
         # EXTENDED_8BIT (names that don't follow the e/r + x/l/h pattern).
@@ -1072,7 +1084,9 @@ class TestRealRegisterPattern:
         # file supports, which affects the interpreter's own parsing too.
         assert ExecutionCommand(Command.INFO_REGISTERS, [name]).register == name
 
-    @pytest.mark.parametrize("name", ["rip", "eflags", "zf", "cf", "sf", "of", "pf", "tf"])
+    @pytest.mark.parametrize(
+        "name", ["rip", "eflags", "zf", "cf", "sf", "of", "pf", "tf"]
+    )
     def test_names_the_debugger_adds_are_accepted(self, name):
         assert ExecutionCommand(Command.INFO_REGISTERS, [name]).register == name
 
@@ -1392,7 +1406,7 @@ def big_debugger():
 
 
 class TestExecuteDispatch:
-    ARGS = {
+    ARGS: ClassVar[dict[Command, list[str]]] = {
         Command.RUN: [], Command.STEP: [], Command.CONTINUE: [],
         Command.BREAK: ["1"], Command.DELETE: ["1"],
         Command.INFO_BREAKPOINTS: [], Command.INFO_REGISTERS: [],
@@ -1423,7 +1437,9 @@ class TestExecuteDispatch:
             debugger.execute(ec)
 
     def test_rejected_commands_come_back_as_failed_results(self, debugger):
-        result = run(debugger, "info registers r8w")  # parses, but the register file lacks it
+        result = run(
+            debugger, "info registers r8w"
+        )  # parses, but the register file lacks it
         assert result.ok is False
         assert result.command is Command.INFO_REGISTERS
         assert "Unknown register" in result.text
@@ -1455,7 +1471,15 @@ class TestSubmit:
         assert debugger.breakpoint_lines() == [4]
 
     def test_never_raises_for_user_input(self, debugger):
-        for line in ("x", "x/zz 1", "info", "radix 3", "break 0", "info registers $", "\x00"):
+        for line in (
+            "x",
+            "x/zz 1",
+            "info",
+            "radix 3",
+            "break 0",
+            "info registers $",
+            "\x00",
+        ):
             debugger.submit(line)
 
 
@@ -1654,13 +1678,17 @@ class TestExecuteRegisters:
 
 class TestExecuteExamine:
     def test_hex_is_zero_padded_to_the_unit_width(self, mem_debugger):
-        assert run(mem_debugger, "x/2wx 0x1000").lines == ["0x1000:\t0x12345678\t0xffffffff"]
+        assert run(mem_debugger, "x/2wx 0x1000").lines == [
+            "0x1000:\t0x12345678\t0xffffffff"
+        ]
         assert run(mem_debugger, "x/bx 0x1008").lines == ["0x1008:\t0x01"]
         assert run(mem_debugger, "x/gx 0x1008").lines == ["0x1008:\t0x0000000000000001"]
 
     def test_decimal_formats(self, mem_debugger):
         assert run(mem_debugger, "x/2dw 0x1000").lines == ["0x1000:\t305419896\t-1"]
-        assert run(mem_debugger, "x/2uw 0x1000").lines == ["0x1000:\t305419896\t4294967295"]
+        assert run(mem_debugger, "x/2uw 0x1000").lines == [
+            "0x1000:\t305419896\t4294967295"
+        ]
 
     def test_structured_data_is_returned_too(self, mem_debugger):
         r = run(mem_debugger, "x/2dw 0x1000")
@@ -1693,7 +1721,9 @@ class TestExecuteExamine:
         assert r.memory is None
 
     def test_a_failed_examine_has_no_partial_rows(self, mem_debugger):
-        r = run(mem_debugger, "x/5wx 0x1000")  # the 5th word is past the mapped 16 bytes
+        r = run(
+            mem_debugger, "x/5wx 0x1000"
+        )  # the 5th word is past the mapped 16 bytes
         assert r.lines == [r.lines[0]] and "0x1010" in r.lines[0] and r.memory is None
 
 
@@ -1704,7 +1734,12 @@ class TestExecuteRadixHelpQuit:
 
     @pytest.mark.parametrize(
         "word, base, label",
-        [("hex", 16, "hexadecimal"), ("2", 2, "binary"), ("oct", 8, "octal"), ("dec", 10, "decimal")],
+        [
+            ("hex", 16, "hexadecimal"),
+            ("2", 2, "binary"),
+            ("oct", 8, "octal"),
+            ("dec", 10, "decimal"),
+        ],
     )
     def test_change(self, debugger, word, base, label):
         r = run(debugger, f"radix {word}")
@@ -1756,14 +1791,18 @@ class TestRepl:
             "Exiting debugger.",
         ]
 
-    def test_program_output_is_printed_before_the_stop_message(self, monkeypatch, capsys):
+    def test_program_output_is_printed_before_the_stop_message(
+        self, monkeypatch, capsys
+    ):
         cu = FakeControlUnit(on_rip={1: lambda: print("hello")})
         self.feed(monkeypatch, ["continue", "quit"])
         Debugger(cu).repl()
         lines = capsys.readouterr().out.splitlines()
         assert lines.index("hello") < lines.index("Program finished.")
 
-    def test_invalid_commands_do_not_end_the_session(self, debugger, monkeypatch, capsys):
+    def test_invalid_commands_do_not_end_the_session(
+        self, debugger, monkeypatch, capsys
+    ):
         self.feed(monkeypatch, ["bogus", "break x", "", "break 2", "quit"])
         debugger.repl()
         out = capsys.readouterr().out
@@ -1784,9 +1823,13 @@ class TestRepl:
         self.feed(monkeypatch, [KeyboardInterrupt(), "break 3", "quit"])
         debugger.repl()
         out = capsys.readouterr().out
-        assert "Quit (type 'quit' to exit)." in out and "Breakpoint set at line 3." in out
+        assert (
+            "Quit (type 'quit' to exit)." in out and "Breakpoint set at line 3." in out
+        )
 
-    def test_session_survives_the_program_finishing(self, debugger, monkeypatch, capsys):
+    def test_session_survives_the_program_finishing(
+        self, debugger, monkeypatch, capsys
+    ):
         self.feed(monkeypatch, ["continue", "continue", "step", "quit"])
         debugger.repl()
         out = capsys.readouterr().out
@@ -1794,7 +1837,9 @@ class TestRepl:
         assert "The program is not being run." in out
         assert "Program has finished." in out
 
-    def test_no_location_is_shown_when_already_finished(self, debugger, cu, monkeypatch, capsys):
+    def test_no_location_is_shown_when_already_finished(
+        self, debugger, cu, monkeypatch, capsys
+    ):
         cu.finished = True
         self.feed(monkeypatch, ["quit"])
         debugger.repl()
@@ -1812,7 +1857,7 @@ class TestNoTerminalAccessOutsideTheConsoleFrontEnd:
     else in the debugger would corrupt it or kill the app.
     """
 
-    ALLOWED_FUNCTIONS = {"read_command", "repl"}
+    ALLOWED_FUNCTIONS: ClassVar[set[str]] = {"read_command", "repl"}
 
     @staticmethod
     def offenders(module):
@@ -1834,7 +1879,8 @@ class TestNoTerminalAccessOutsideTheConsoleFrontEnd:
             def visit_Call(self, node):
                 f = node.func
                 name = (
-                    f.id if isinstance(f, ast.Name)
+                    f.id
+                    if isinstance(f, ast.Name)
                     else f"{f.value.id}.{f.attr}"
                     if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name)
                     else None

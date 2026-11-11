@@ -5,7 +5,7 @@ forming a summation loop. See tests/asm_files/loop_sum.asm.
 
 import pytest
 
-from conftest import LIBS_PRESENT
+from interpreter._paths import LIBS_PRESENT
 
 pytestmark = pytest.mark.skipif(
     not LIBS_PRESENT, reason="libreg.so / libmmu.so not built"

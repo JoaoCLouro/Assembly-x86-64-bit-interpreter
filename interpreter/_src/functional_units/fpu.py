@@ -1,7 +1,7 @@
 import ctypes
 import os
 
-from conftest import SRC_ROOT
+from interpreter._paths import SRC_ROOT
 
 from ..bridges.data_memory import Data_Memory
 from ..bridges.register_manager import Registers_Interface

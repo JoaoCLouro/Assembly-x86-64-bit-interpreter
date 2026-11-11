@@ -89,10 +89,14 @@ EXTRA_REGISTERS = {"rip", "eflags", "zf", "cf", "sf", "of", "pf", "tf"}
 
 # Numerical representations supported by Control_Unit.get_state, by name or number.
 RADIX_NAMES = {
-    "bin": 2, "binary": 2,
-    "oct": 8, "octal": 8,
-    "dec": 10, "decimal": 10,
-    "hex": 16, "hexadecimal": 16,
+    "bin": 2,
+    "binary": 2,
+    "oct": 8,
+    "octal": 8,
+    "dec": 10,
+    "decimal": 10,
+    "hex": 16,
+    "hexadecimal": 16,
 }
 VALID_RADIXES = (2, 8, 10, 16)
 RADIX_LABELS = {2: "binary", 8: "octal", 10: "decimal", 16: "hexadecimal"}
@@ -161,9 +165,7 @@ class ExecutionCommand:
                 | Command.INFO_BREAKPOINTS
             ):
                 if args:
-                    raise InvalidCommandError(
-                        f"'{command.value}' takes no arguments."
-                    )
+                    raise InvalidCommandError(f"'{command.value}' takes no arguments.")
 
             case Command.STEP:
                 if args not in ([], ["instruction"]):
@@ -182,7 +184,9 @@ class ExecutionCommand:
 
             case Command.RADIX:
                 if len(args) > 1:
-                    raise InvalidCommandError("Usage: radix [2|8|10|16|bin|oct|dec|hex]")
+                    raise InvalidCommandError(
+                        "Usage: radix [2|8|10|16|bin|oct|dec|hex]"
+                    )
                 if args:
                     self.radix = self._parse_radix(args[0])
 
@@ -256,7 +260,9 @@ class ExecutionCommand:
         self.address = value
 
     def __repr__(self) -> str:
-        fields = {k: v for k, v in vars(self).items() if k != "command" and v is not None}
+        fields = {
+            k: v for k, v in vars(self).items() if k != "command" and v is not None
+        }
         return f"ExecutionCommand({self.command.name}, {fields})"
 
 
@@ -366,7 +372,9 @@ class Debugger:
         """Every line of the program with its current-line and breakpoint flags."""
         rip = self.control_unit.rip
         return [
-            SourceLine(i + 1, self.format_instruction(tokens), i == rip, i in self.breakpoints)
+            SourceLine(
+                i + 1, self.format_instruction(tokens), i == rip, i in self.breakpoints
+            )
             for i, tokens in enumerate(self.control_unit.text_section)
         ]
 
@@ -553,7 +561,11 @@ class Debugger:
         # which read_reg resolves to the right parent and width.
         try:
             size = registers.get_register_parent(name)[1]
-            return {name: Control_Unit._format_value(registers.read_reg(name), size, num_rep)}  # type: ignore
+            return {
+                name: Control_Unit._format_value(  # type: ignore
+                    registers.read_reg(name), size, num_rep
+                )
+            }  # type: ignore
         except ValueError:
             raise InvalidCommandError(f"Unknown register: '{register}'.")
 
@@ -585,7 +597,7 @@ class Debugger:
             addr = address + i * unit
             try:
                 data: bytes = self.control_unit.memory.read_bytes(addr, unit)  # type: ignore
-            except Exception as e:  # TODO: narrow to whatever read_bytes raises
+            except MemoryError as e:  # what Data_Memory.read_bytes raises
                 raise InvalidCommandError(f"Cannot access memory at 0x{addr:x}: {e}")
 
             if fmt == "u":
@@ -641,7 +653,9 @@ class Debugger:
             match ec.command:
                 case Command.RUN | Command.CONTINUE:
                     if self.done:
-                        return CommandResult(ec.command, ["The program is not being run."])
+                        return CommandResult(
+                            ec.command, ["The program is not being run."]
+                        )
                     return self.stop_result(ec.command, self.continue_execution())
                 case Command.STEP:
                     if self.done:
@@ -655,7 +669,9 @@ class Debugger:
                         if added
                         else f"Breakpoint already set at line {ec.line}."
                     )
-                    return CommandResult(ec.command, [text], breakpoints=self.breakpoint_lines())
+                    return CommandResult(
+                        ec.command, [text], breakpoints=self.breakpoint_lines()
+                    )
                 case Command.DELETE:
                     assert ec.line is not None
                     removed = self.remove_breakpoint(ec.line)
@@ -664,7 +680,9 @@ class Debugger:
                         if removed
                         else f"No breakpoint at line {ec.line}."
                     )
-                    return CommandResult(ec.command, [text], breakpoints=self.breakpoint_lines())
+                    return CommandResult(
+                        ec.command, [text], breakpoints=self.breakpoint_lines()
+                    )
                 case Command.INFO_BREAKPOINTS:
                     lines = self.breakpoint_lines()
                     text_lines = (
@@ -824,7 +842,9 @@ class Debugger:
         """
         tokens = line.lower().split()
         if not tokens:
-            raise InvalidCommandError("Empty command. Type 'help' for a list of commands.")
+            raise InvalidCommandError(
+                "Empty command. Type 'help' for a list of commands."
+            )
         head, rest = tokens[0], tokens[1:]
 
         # x/NFU ADDRESS: the format spec rides on the command word itself.

@@ -410,11 +410,13 @@ Reading will always take a start address and a number of bytes to read. This met
 | **Arithmetic** | `add`, `adc`, `sub`, `sbb`, `inc`, `dec`, `cmp`, `mul`, `imul`, `div`, `idiv` |
 | **Bitwise logic** | `and`, `or`, `xor`, `not`, `neg`, `xchg` |
 | **Shifts & rotates** | `shl`/`sal`, `shr`, `sar`, `rol`, `ror`, `rcl`, `rcr` |
-| **System calls** | `syscall` — see [Exit codes status reference](#exit-codes-status-reference) for related error codes; refer to `bridges/syscall.py` for the specific syscall numbers currently supported |
+| **System calls** | `syscall` — see [Exit codes status reference](#exit-codes-status-reference) for related error codes; refer to [Syscalls](docs/assembly_specs.md#7-system-calls) for the specific syscall numbers currently supported |
 
 `mul`/`imul`/`div`/`idiv` only support the standard single-operand NASM
 form (e.g. `mul rbx`, not the two/three-operand `imul` variants).
 FPU instructions are not yet implemented — see [Roadmap](#roadmap).
+
+More information about the currently supported operations at [Docs](docs/assembly_specs.md/#51-currently-supported-instructions)
 
 ### Allowed declarations
 
@@ -476,24 +478,27 @@ Constants declarations are a bit more nuanced. Allowed declarations include:
 
 The application returns the following exit codes to indicate success or specific failure states during execution:
 
-| Code | Enum Constant | Description |
-| :--- | :--- | :--- |
-| **-1000** | `IRRECOVERABLE_ERROR` | Unsuccessful exit due to a critical, non-recoverable runtime or state error. |
-| **-3** | `CONSTANT_DECLARATION_ERROR` | Unsuccessful exit due to an incorrect constant declaration format. |
-| **-2** | `BSS_FORMAT_ERROR` | Unsuccessful exit due to incorrect `.bss` format detected in the parsing phase. |
-| **-1** | `DATA_FORMAT_ERROR` | Unsuccessful exit due to incorrect `.data`/`.rodata` format detected in the parsing phase. |
-| **0** | `SUCCESS` | Successful execution and exit. |
-| **1** | `NO_START_LABEL` | Unsuccessful exit due to not finding an entry point to the program during `.text` parsing. |
-| **2** | `DUPLICATE_LABEL` | Unsuccessful exit due to a duplicated label declaration found during `.text` parsing. |
-| **4** | `UNOPENABLE_FILE` | Unsuccessful exit because the target file could not be opened or read. |
-| **5** | `STACK_OVERFLOW` | Unsuccessful exit due to a detected stack overflow (stack exceeds allowed limits). |
-| **10** | `INVALID_INSTRUCTION_SYNTAX` | Unsuccessful exit due to a syntax error in an instruction during parsing. |
-| **11** | `RESERVED_KEYWORD_VIOLATION` | Unsuccessful exit due to conflict in label declaration with a reserved keyword. |
-| **12** | `INVALID_SYSCALL` | Unsuccessful exit due to an unsupported or malformed system call. |
-| **13** | `NO_EXIT_FOUND` | Unsuccessful exit due to reaching end-of-program without encountering an explicit exit syscall or termination instruction. |
-| **14** | `INVALID_OR_UNSUPPORTED_INSTRUCTION` | Unsuccessful exit due to an unrecognized or unimplemented instruction mnemonic. |
-| **15** | `BY_0_DIVISION_ERROR` | Unsuccessful exit due to a division by 0 error. |
-| **109101** | `SOFTWARE_ERROR` | Unsuccessful exit due to an internal software bug (ASCII representation of "me"). |
+| Code | Enum Constant |
+| :--- | :--- |
+| **-1000** | `IRRECOVERABLE_ERROR` |
+| **-3** | `CONSTANT_DECLARATION_ERROR` |
+| **-2** | `BSS_FORMAT_ERROR` |
+| **-1** | `DATA_FORMAT_ERROR` |
+| **0** | `SUCCESS` |
+| **1** | `NO_START_LABEL` |
+| **2** | `DUPLICATE_LABEL` |
+| **4** | `UNOPENABLE_FILE` |
+| **5** | `STACK_OVERFLOW` |
+| **10** | `INVALID_INSTRUCTION_SYNTAX` |
+| **11** | `RESERVED_KEYWORD_VIOLATION` |
+| **12** | `INVALID_SYSCALL` |
+| **13** | `NO_EXIT_FOUND` |
+| **14** | `INVALID_OR_UNSUPPORTED_INSTRUCTION` |
+| **15** | `BY_0_DIVISION_ERROR` |
+| **109101** | `SOFTWARE_ERROR` |
+
+
+More information can be found at [Docs](./docs/assembly_specs.md#6-exit-codes-status-reference)
 
 ---
 
@@ -538,13 +543,13 @@ The application returns the following exit codes to indicate success or specific
 - Bit shifts and rotations, with and without carry (`shl`/`sal`, `shr`, `sar`, `rol`, `ror`, `rcl`, `rcr`);
 - Configurable numeric representation (decimal, binary, octal, hexadecimal) for `get_state()`/`to_json()` output.
 
+- GDB-like `Debugger` for ease of access to atomic changes in the program execution
+
 ### Planned improvement
 
 - Implement FPU operations, not yet available;
 
 - Reinforcing the syscall's supported by the program;
-
-- Implement a debugging execution type with gdb commands and one instruction at a time execution using the trap flag mechanism already implemented;
 
 ---
 

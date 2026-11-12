@@ -463,7 +463,6 @@ class TestRun:
 
         assert call_count["n"] == 3
 
-
     def test_run_catches_exceptions_from_step_and_marks_finished(
         self,
         control_unit: Control_Unit,

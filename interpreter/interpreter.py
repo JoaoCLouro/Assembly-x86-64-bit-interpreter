@@ -20,9 +20,7 @@ class Interpreter_x86:
 
     __slots__ = ["cpu", "loader", "memory", "register", "state", "state_code"]
 
-    def __init__(
-        self, file_name: str | None, args: list[str] | None
-    ):
+    def __init__(self, file_name: str | None, args: list[str] | None):
         """
         Initializes and runs the interpreter.\n
         After running you can get the state of the program.\n

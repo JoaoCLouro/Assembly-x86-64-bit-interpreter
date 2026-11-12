@@ -3,12 +3,12 @@
 import os
 import sys
 
-from ._src.clis.debug import DebugCLI
-from ._src.helpers.storage import Storage
-from ._src.parsing.control_unit import Control_Unit
-from ._src.parsing.debugger import Debugger
-from ._src.parsing.segment_mapper import Segment_Mapper
-from .exit_codes import ExitCode
+from interpreter._src.clis.debug import DebugCLI
+from interpreter._src.helpers.storage import Storage
+from interpreter._src.parsing.control_unit import Control_Unit
+from interpreter._src.parsing.debugger import Debugger
+from interpreter._src.parsing.segment_mapper import Segment_Mapper
+from interpreter.exit_codes import ExitCode
 
 HELP_TEXT = """\
 Usage: python main.py <path-to-assembly-file> [flags] [-- program-args...]

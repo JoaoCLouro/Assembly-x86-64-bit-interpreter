@@ -1,5 +1,8 @@
 #include "../include/operations.h"
 
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 
 // --------------------------------------------------------------------------------
 // Structures implementations
@@ -683,10 +686,17 @@ static void exec_mul(Info *s)
         cf_of = ((res >> 32) != 0);
     } else
     { // 64-bit
+        uint64_t low, high;
+#ifdef _MSC_VER
+        low = _umul128(rax_val, src, &high);
+#else
         __uint128_t res = (__uint128_t)rax_val * (__uint128_t)src;
-        write_reg(s->registers, 0, (unsigned long long)res, 8, 0);          // RAX
-        write_reg(s->registers, 3, (unsigned long long)(res >> 64), 8, 0);  // RDX
-        cf_of = ((res >> 64) != 0);
+        low = (uint64_t)res;
+        high = (uint64_t)(res >> 64);
+#endif
+        write_reg(s->registers, 0, low, 8, 0);   // RAX
+        write_reg(s->registers, 3, high, 8, 0);  // RDX
+        cf_of = (high != 0);
     }
 
     uint32_t rflags = read_rflags(s->registers);
@@ -724,10 +734,17 @@ static void exec_imul(Info *s)
         write_reg(s->registers, 3, (unsigned int)((res >> 32) & 0xFFFFFFFFLL), 4, 0);  // EDX
         cf_of = (res != (int32_t)res);
     } else {
+        int64_t low, high;
+#ifdef _MSC_VER
+        low = _mul128((int64_t)rax_val, (int64_t)src, &high);
+#else
         __int128 res = (__int128)rax_val * (__int128)src;
-        write_reg(s->registers, 0, (unsigned long long)res, 8, 0);          // RAX
-        write_reg(s->registers, 3, (unsigned long long)(res >> 64), 8, 0);  // RDX
-        cf_of = (res != (int64_t)res);
+        low = (int64_t)res;
+        high = (int64_t)(res >> 64);
+#endif
+        write_reg(s->registers, 0, (uint64_t)low, 8, 0);   // RAX
+        write_reg(s->registers, 3, (uint64_t)high, 8, 0);  // RDX
+        cf_of = (high != (low < 0 ? -1LL : 0LL));
     }
 
     // Update CF and OF only
@@ -772,9 +789,16 @@ static void exec_div(Info *s)
         write_reg(s->registers, 3, rem, 4, 0);  // EDX
     } else
     {
-        __uint128_t dividend = ((__uint128_t)read_8b_reg(s->registers, 3) << 64) | read_8b_reg(s->registers, 0); // RDX:RAX
-        uint64_t quot = dividend / divisor;
-        uint64_t rem = dividend % divisor;
+        uint64_t rdx_val = read_8b_reg(s->registers, 3); // RDX
+        uint64_t rax_val = read_8b_reg(s->registers, 0); // RAX
+        uint64_t quot, rem;
+#ifdef _MSC_VER
+        quot = _udiv128(rdx_val, rax_val, divisor, &rem);
+#else
+        __uint128_t dividend = ((__uint128_t)rdx_val << 64) | rax_val;
+        quot = (uint64_t)(dividend / divisor);
+        rem = (uint64_t)(dividend % divisor);
+#endif
         write_reg(s->registers, 0, quot, 8, 0); // RAX
         write_reg(s->registers, 3, rem, 8, 0);  // RDX
     }
@@ -815,9 +839,16 @@ static void exec_idiv(Info *s)
         write_reg(s->registers, 0, (uint32_t)quot, 4, 0);
         write_reg(s->registers, 3, (uint32_t)rem, 4, 0);
     } else {
-        __int128 dividend = ((__int128)read_8b_reg(s->registers, 3) << 64) | read_8b_reg(s->registers, 0);
-        int64_t quot = dividend / divisor;
-        int64_t rem = dividend % divisor;
+        uint64_t rdx_val = read_8b_reg(s->registers, 3); // RDX
+        uint64_t rax_val = read_8b_reg(s->registers, 0); // RAX
+        int64_t quot, rem;
+#ifdef _MSC_VER
+        quot = _div128((int64_t)rdx_val, (int64_t)rax_val, (int64_t)divisor, &rem);
+#else
+        __int128 dividend = ((__int128)rdx_val << 64) | rax_val;
+        quot = (int64_t)(dividend / (int64_t)divisor);
+        rem = (int64_t)(dividend % (int64_t)divisor);
+#endif
         write_reg(s->registers, 0, (uint64_t)quot, 8, 0);
         write_reg(s->registers, 3, (uint64_t)rem, 8, 0);
     }

@@ -35,7 +35,7 @@ Before using please make sure your code follows the [Code format references](#co
 ### 1. From GitHub Releases (Pre-built Package)
 
 Download and install the pre-compiled wheel directly from the
-[v0.3.2 GitHub Release](https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter/releases/tag/v0.4.0):
+[v0.4.0 GitHub Release](https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter/releases/tag/v0.4.0):
 
 ```bash
 pip install https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter/releases/download/v0.4.0/cpu_simulator-0.4.0-py3-none-any.whl

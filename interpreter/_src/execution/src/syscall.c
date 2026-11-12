@@ -89,3 +89,7 @@ int64_t sys_getrandom(uint8_t *buffer, size_t size)
     return (int64_t) got;
 #endif
 }
+
+#ifdef _WIN32
+__declspec(dllexport) void* PyInit_libscl(void) { return 0; }
+#endif

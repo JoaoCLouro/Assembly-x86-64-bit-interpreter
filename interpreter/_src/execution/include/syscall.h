@@ -1,6 +1,12 @@
 #ifndef SYSCALL_H
 #define SYSCALL_H
 
+#ifdef _WIN32
+    #define EXPORT __declspec(dllexport)
+#else
+    #define EXPORT
+#endif
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -19,7 +25,7 @@
  * @param size Number of bytes to read
  * @return Number of bytes actually read, or -1 on error / unknown fd
  */
-int64_t sys_read(int fd, uint8_t *buffer, size_t size);
+EXPORT int64_t sys_read(int fd, uint8_t *buffer, size_t size);
 
 /**
  * @brief Performs a real write to a file descriptor.
@@ -33,7 +39,7 @@ int64_t sys_read(int fd, uint8_t *buffer, size_t size);
  * @param size Number of bytes to write
  * @return Number of bytes actually written, or -1 on error / unknown fd
  */
-int64_t sys_write(int fd, const uint8_t *buffer, size_t size);
+EXPORT int64_t sys_write(int fd, const uint8_t *buffer, size_t size);
 
 /**
  * @brief Opens a real file.
@@ -45,7 +51,7 @@ int64_t sys_write(int fd, const uint8_t *buffer, size_t size);
  * @param mode Permission bits used only when O_CREAT is set (e.g. 0644)
  * @return A real file descriptor (>= 0) on success, or -1 on error
  */
-int64_t sys_open(const char *path, int flags, int mode);
+EXPORT int64_t sys_open(const char *path, int flags, int mode);
 
 /**
  * @brief Closes a real file descriptor previously returned by sys_open.
@@ -53,7 +59,7 @@ int64_t sys_open(const char *path, int flags, int mode);
  * @return 0 on success, or -1 on error
  * @warning Does not accept 0/1/2 — closing the standard streams is not supported
  */
-int64_t sys_close(int fd);
+EXPORT int64_t sys_close(int fd);
 
 /**
  * @brief Fills `buffer` with `size` bytes of random data from CSPRNG.
@@ -63,7 +69,7 @@ int64_t sys_close(int fd);
  * @param size Number of random bytes requested
  * @return Number of random bytes actually written to `buffer`, or -1 on error
  */
-int64_t sys_getrandom(uint8_t *buffer, size_t size);
+EXPORT int64_t sys_getrandom(uint8_t *buffer, size_t size);
 
 // To complete with more syscalls
 

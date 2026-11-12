@@ -71,12 +71,13 @@ jobs:
   # Job 3: Test Suite
   # =================
   test:
-    name: Test Suite (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    name: Test Suite (${{ matrix.os }} / Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10']
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.12"]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
@@ -85,7 +86,8 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          cache-suffix: "uv-test-${{ matrix.python-version }}"
+          cache-dependency-glob: "uv.lock"
+          cache-suffix: "uv-test-${{ matrix.os }}-${{ matrix.python-version }}"
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v7
@@ -95,11 +97,20 @@ jobs:
       - name: Install Project Dependencies
         run: uv sync --frozen --dev
 
-      - name: Run Pytest with Coverage
-        run: uv run pytest --cov=. --cov-report=xml
+      - name: Run Pytest (with Coverage on Ubuntu 3.10)
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ] && [ "${{ matrix.python-version }}" = "3.10" ]; then
+            uv run pytest --cov=. --cov-report=xml
+          else
+            uv run pytest
+          fi
+        shell: bash
 
-      # Optional: Upload coverage reports to Codecov or GitHub Artifacts
+      - name: Smoke-test CLI Entry Point
+        run: uv run cpu-sim --help
+
       - name: Upload Coverage Artifact
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10'
         uses: actions/upload-artifact@v7
         with:
           name: coverage-report-python-${{ matrix.python-version }}

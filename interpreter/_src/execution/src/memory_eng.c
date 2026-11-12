@@ -200,3 +200,7 @@ static int read_block (Table* table, uint64_t v_addr, uint8_t *buffer, uint8_t s
     }
     return 0;
 }
+
+#ifdef _WIN32
+__declspec(dllexport) void* PyInit_libmmu(void) { return 0; }
+#endif

@@ -998,3 +998,7 @@ static void exec_rcr(Info *s)
     rflags = (rflags & ~1U) | (cf & 1U);
     write_rflags(s->registers, rflags);
 }
+
+#ifdef _WIN32
+__declspec(dllexport) void* PyInit_liboperations(void) { return 0; }
+#endif

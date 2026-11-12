@@ -1,6 +1,12 @@
 #ifndef MEMORY_ENG_H
 #define MEMORY_ENG_H
 
+#ifdef _WIN32
+    #define EXPORT __declspec(dllexport)
+#else
+    #define EXPORT
+#endif
+
 #include <stdint.h>
 #include <stddef.h>
 
@@ -19,7 +25,7 @@ typedef struct Table Table;
  * @warning This function should be called before any memory access operations to ensure that the paging structure is properly initialized.
  * * If memory allocation fails, the function will return NULL, and subsequent memory access operations will not be possible until the issue is resolved.
  */
-Table* table_init();
+EXPORT Table* table_init();
 
 /**
  * @brief Frees the memory allocated for the paging structure.
@@ -29,7 +35,7 @@ Table* table_init();
  * @warning This function should be called when the paging structure is no longer needed to prevent memory leaks.
  * * If the provided pointer is NULL, the function will simply return without performing any operations.
  */
-void free_table(Table* table);
+EXPORT void free_table(Table* table);
 
 /**
  * @brief Writes bytes in memory.
@@ -49,7 +55,7 @@ void free_table(Table* table);
  * If set to 0, the function will not create new pages and will return without writing if the target page does not exist.
  * If set to 1, the function will create new pages as needed to accommodate the write operation.
  */
-int write_mem(Table* table, uint64_t v_addr, uint8_t *data, uint8_t size, uint8_t create_page);
+EXPORT int write_mem(Table* table, uint64_t v_addr, uint8_t *data, uint8_t size, uint8_t create_page);
 
 /**
  * @brief Reads bytes from virtual memory.
@@ -65,6 +71,6 @@ int write_mem(Table* table, uint64_t v_addr, uint8_t *data, uint8_t size, uint8_
  * @warning Uses 1 to signal a bad address to read and 0 to signal a success
  * @warning This function assumes that the data block does not exceed the maximum size of the virtual address space.
  */
-int read_mem(Table* table, uint64_t v_addr, uint8_t *result, uint8_t size);
+EXPORT int read_mem(Table* table, uint64_t v_addr, uint8_t *result, uint8_t size);
 
 #endif // MEMORY_ENG_H

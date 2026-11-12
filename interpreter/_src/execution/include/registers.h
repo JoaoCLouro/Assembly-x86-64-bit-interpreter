@@ -1,6 +1,12 @@
 #ifndef REGISTERS_H
 #define REGISTERS_H
 
+#ifdef _WIN32
+    #define EXPORT __declspec(dllexport)
+#else
+    #define EXPORT
+#endif
+
 #include <stdint.h>
 
 // Compilation command: gcc -O3 -shared -o libreg.so -fPIC registers.c
@@ -20,14 +26,14 @@ typedef struct CPURegs CPURegs;
  *
  * @return Address value of the structure defined in this file in memory
  */
-CPURegs* CPURegs_create ();
+EXPORT CPURegs* CPURegs_create ();
 // Register  freeing
 /**
  * @brief Frees the memory allocated for the CPURegs structure.
  *
  * @param c Pointer to the CPURegs structure to free
  */
-void CPURegs_free(CPURegs *c);
+EXPORT void CPURegs_free(CPURegs *c);
 
 //sign setters
 /**
@@ -37,7 +43,7 @@ void CPURegs_free(CPURegs *c);
  * @param reg_id Index of the register in as defined by the order of initialization in the CPURegs struct
  * @param is_signed 0 = unsigned , 1 = signed
  */
-void set_reg_sign (CPURegs *current_state, uint8_t reg_id, uint8_t is_signed);
+EXPORT void set_reg_sign (CPURegs *current_state, uint8_t reg_id, uint8_t is_signed);
 
 /**
  * @brief Returns the value of the sign status of a given register. If the given index is incorrect returns -1.
@@ -45,7 +51,7 @@ void set_reg_sign (CPURegs *current_state, uint8_t reg_id, uint8_t is_signed);
  * @param current_state Holder of the register structures
  * @param reg_id Index of the register in as defined by the order of initialization in the CPURegs struct
  */
-int is_signed (CPURegs *current_state, uint8_t reg_id);
+EXPORT int is_signed (CPURegs *current_state, uint8_t reg_id);
 
 // writing
 /**
@@ -57,7 +63,7 @@ int is_signed (CPURegs *current_state, uint8_t reg_id);
  * @param size   Number of bytes to write (1, 2, 4, 8)
  * @param is_high: Boolean (1 if accessing AH/BH/CH/DH)
  */
-void write_reg (CPURegs *current_state, uint8_t reg_id, int64_t value, uint8_t size, uint8_t is_high);
+EXPORT void write_reg (CPURegs *current_state, uint8_t reg_id, int64_t value, uint8_t size, uint8_t is_high);
 // Read
 /**
  * @brief Hardware Dispatcher fo 8 byte registers.
@@ -67,7 +73,7 @@ void write_reg (CPURegs *current_state, uint8_t reg_id, int64_t value, uint8_t s
  * @return The 64-bit value of the given register
  * @warning The index must be valid for a correct result
  */
-uint64_t read_8b_reg (CPURegs *current_state, uint8_t reg_id);
+EXPORT uint64_t read_8b_reg (CPURegs *current_state, uint8_t reg_id);
 /**
  * @brief Hardware Dispatcher fo 4 byte registers.
  *
@@ -76,7 +82,7 @@ uint64_t read_8b_reg (CPURegs *current_state, uint8_t reg_id);
  * @return The 32-bit value of the given register
  * @warning The index must be valid for a correct result
  */
-uint32_t read_4b_reg (CPURegs *current_state, uint8_t reg_id);
+EXPORT uint32_t read_4b_reg (CPURegs *current_state, uint8_t reg_id);
 
 /**
  * @brief Hardware Dispatcher fo 2 byte registers.
@@ -86,7 +92,7 @@ uint32_t read_4b_reg (CPURegs *current_state, uint8_t reg_id);
  * @return The 16-bit value of the given register
  * @warning The index must be valid for a correct result
  */
-uint16_t read_2b_reg (CPURegs *current_state, uint8_t reg_id);
+EXPORT uint16_t read_2b_reg (CPURegs *current_state, uint8_t reg_id);
 
 /**
  * @brief Hardware Dispatcher fo 1 byte registers.
@@ -97,7 +103,7 @@ uint16_t read_2b_reg (CPURegs *current_state, uint8_t reg_id);
  * @return The 8-bit value of the given register
  * @warning The index must be valid for a correct result
  */
-uint8_t read_1b_reg (CPURegs *current_state, uint8_t reg_id, uint8_t is_high);
+EXPORT uint8_t read_1b_reg (CPURegs *current_state, uint8_t reg_id, uint8_t is_high);
 
 // Flags
 /**
@@ -106,7 +112,7 @@ uint8_t read_1b_reg (CPURegs *current_state, uint8_t reg_id, uint8_t is_high);
  * @param current_state Holder of the register structures
  * @return The 32-bit value of the rflags register
  */
-uint32_t read_rflags (CPURegs *current_state);
+EXPORT uint32_t read_rflags (CPURegs *current_state);
 
 /**
  * @brief Returns the value of the trap flag (TF) in the rflags register.
@@ -114,7 +120,7 @@ uint32_t read_rflags (CPURegs *current_state);
  * @param current_state Holder of the register structures
  * @return 1 if the trap flag is set, 0 otherwise
  */
-uint8_t read_trap_flag (CPURegs *current_state);
+EXPORT uint8_t read_trap_flag (CPURegs *current_state);
 
 /**
  * @brief Returns the value of the carry flag (CF) in the rflags register.
@@ -122,7 +128,7 @@ uint8_t read_trap_flag (CPURegs *current_state);
  * @param current_state Holder of the register structures
  * @return 1 if the carry flag is set, 0 otherwise
  */
-uint8_t read_carry_flag (CPURegs *current_state);
+EXPORT uint8_t read_carry_flag (CPURegs *current_state);
 
 /**
  * @brief Returns the value of the zero flag (ZF) in the rflags register.
@@ -130,7 +136,7 @@ uint8_t read_carry_flag (CPURegs *current_state);
  * @param current_state Holder of the register structures
  * @return 1 if the zero flag is set, 0 otherwise
  */
-uint8_t read_zero_flag (CPURegs *current_state);
+EXPORT uint8_t read_zero_flag (CPURegs *current_state);
 
 /**
  * @brief Returns the value of the sign flag (SF) in the rflags register.
@@ -138,7 +144,7 @@ uint8_t read_zero_flag (CPURegs *current_state);
  * @param current_state Holder of the register structures
  * @return 1 if the sign flag is set, 0 otherwise
  */
-uint8_t read_sign_flag (CPURegs *current_state);
+EXPORT uint8_t read_sign_flag (CPURegs *current_state);
 
 /**
  * @brief Returns the value of the overflow flag (OF) in the rflags register.
@@ -146,7 +152,7 @@ uint8_t read_sign_flag (CPURegs *current_state);
  * @param current_state Holder of the register structures
  * @return 1 if the overflow flag is set, 0 otherwise
  */
-uint8_t read_overflow_flag (CPURegs *current_state);
+EXPORT uint8_t read_overflow_flag (CPURegs *current_state);
 
 /**
  * @brief Returns the value of the parity flag (PF) in the rflags register.
@@ -154,7 +160,7 @@ uint8_t read_overflow_flag (CPURegs *current_state);
  * @param current_state Holder of the register structures
  * @return 1 if the parity flag is set, 0 otherwise
  */
-uint8_t read_parity_flag (CPURegs* current_state);
+EXPORT uint8_t read_parity_flag (CPURegs* current_state);
 
 /**
  * @brief Writes a value to the rflags register.
@@ -162,7 +168,7 @@ uint8_t read_parity_flag (CPURegs* current_state);
  * @param current_state Holder of the register structures
  * @param value The 32-bit value to write to the rflags register
  */
-void write_rflags (CPURegs *current_state, uint32_t value);
+EXPORT void write_rflags (CPURegs *current_state, uint32_t value);
 
 /**
  * @brief Exchanges the value of a given flag based on its bit number on the flags register.
@@ -171,7 +177,7 @@ void write_rflags (CPURegs *current_state, uint32_t value);
  * @param flag_id The bit number of the flag to exchange
  * @warning flag_id must be a valid id else it won't make any alterations to rflags
  */
-void exch_rflag (CPURegs *current_state, uint8_t flag_id);
+EXPORT void exch_rflag (CPURegs *current_state, uint8_t flag_id);
 
 /**
  * @brief Toggles the value of the trap flag (TF) in the rflags register.
@@ -179,6 +185,6 @@ void exch_rflag (CPURegs *current_state, uint8_t flag_id);
  * @param current_state Holder of the register structures
  * @warning This function toggles the value of the trap flag, so if it is currently set it will be cleared, and if it is currently cleared it will be set
  */
-void set_trap_flag (CPURegs *current_state);
+EXPORT void set_trap_flag (CPURegs *current_state);
 
 #endif // REGISTERS_H

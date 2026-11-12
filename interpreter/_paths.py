@@ -21,8 +21,11 @@ If you ever relocate the whole repo to a new path, just re-run
 `pip install -e .` once from the new location.
 """
 
+import ctypes
 import os
 import sys
+from importlib.resources import files
+from pathlib import Path
 
 
 def _find_project_root(start_dir: str) -> str:
@@ -50,3 +53,20 @@ LIBS_PRESENT = os.path.exists(LIBREG_PATH) and os.path.exists(LIBMMU_PATH)
 # Add SRC_ROOT to sys.path so tests can import internal folders directly
 if SRC_ROOT not in sys.path:
     sys.path.insert(0, SRC_ROOT)
+
+
+def load_c_lib(lib_stem: str) -> ctypes.CDLL:
+    """Load e.g. 'libmmu', 'liboperations', 'libreg', or 'libscl'."""
+    lib_dir = files("interpreter._src.lib")
+    for entry in lib_dir.iterdir():
+        if entry.name.startswith(f"{lib_stem}.") and entry.name.endswith(
+            (".so", ".dylib", ".dll", ".pyd")
+        ):
+            lib_path = Path(str(entry))
+            if sys.platform == "win32":
+                with os.add_dll_directory(str(lib_path.parent)):
+                    return ctypes.CDLL(str(lib_path))
+            return ctypes.CDLL(str(lib_path))
+    raise FileNotFoundError(
+        f"Compiled library '{lib_stem}' not found in interpreter._src.lib"
+    )

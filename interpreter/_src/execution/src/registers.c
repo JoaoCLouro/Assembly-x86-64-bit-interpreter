@@ -113,3 +113,7 @@ void exch_rflag (CPURegs *current_state, uint8_t flag_id) {
 void set_trap_flag(CPURegs *current_state) {
     if (current_state) current_state->rflags ^= (1U << 8);
 }
+
+#ifdef _WIN32
+__declspec(dllexport) void* PyInit_libreg(void) { return 0; }
+#endif

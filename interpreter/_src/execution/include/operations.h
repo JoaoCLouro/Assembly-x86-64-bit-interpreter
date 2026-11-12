@@ -1,6 +1,12 @@
 #ifndef OPERATIONS_H
 #define OPERATIONS_H
 
+#ifdef _WIN32
+    #define EXPORT __declspec(dllexport)
+#else
+    #define EXPORT
+#endif
+
 #include "../include/memory_eng.h"
 #include "../include/registers.h"
 #include <string.h>
@@ -68,7 +74,7 @@ typedef enum {
 /**
  * @brief Creates a pointer to the operand Info structure and returns it.
  */
-Info* create_operand_state ();
+EXPORT Info* create_operand_state ();
 
 // Pointer freeing
 /**
@@ -77,7 +83,7 @@ Info* create_operand_state ();
  *
  * @param ptr Pointer to free
  */
-void free_operand_state (Info* ptr);
+EXPORT void free_operand_state (Info* ptr);
 
 // Essential data structure setters
 
@@ -87,7 +93,7 @@ void free_operand_state (Info* ptr);
  * @param current_state Pointer to the Info structure holding all operand, instruction result and registers info
  * @param r             Register structure holding all register info
  */
-void set_registers_ref (Info *current_state, CPURegs *r);
+EXPORT void set_registers_ref (Info *current_state, CPURegs *r);
 
 /**
  * @brief Sets the table reference to use for memory access operations.
@@ -95,7 +101,7 @@ void set_registers_ref (Info *current_state, CPURegs *r);
  * @param current_state Pointer to the Info structure holding all operand, instruction result and registers info
  * @param t             Table structure holding all paging info for memory access operations
  */
-void set_table_ref (Info *current_state, Table *t);
+EXPORT void set_table_ref (Info *current_state, Table *t);
 
 // Info setters
 /**
@@ -109,7 +115,7 @@ void set_table_ref (Info *current_state, Table *t);
  * @param is_high   Flag to state if the operand is the high low byte on the supported registers (ah/bh/ch/dh)
  * @param is_signed Flag to state if the operand is signed (1) or unsigned (0)
  */
-void set_operand_info (Info *current_instruction_state, char* operand, long long address, uint8_t size, uint8_t op_type, uint8_t is_high, uint8_t is_signed);
+EXPORT void set_operand_info (Info *current_instruction_state, char* operand, long long address, uint8_t size, uint8_t op_type, uint8_t is_high, uint8_t is_signed);
 
 /**
  * @brief Sets the current instruction in use.
@@ -117,7 +123,7 @@ void set_operand_info (Info *current_instruction_state, char* operand, long long
  * @param current_instruction_state Pointer to the Info structure holding all operand, instruction, registers and results info
  * @param instruction               Instruction to execute
  */
-void set_instruction(Info *current_instruction_state, uint8_t instruction);
+EXPORT void set_instruction(Info *current_instruction_state, uint8_t instruction);
 
 // Infor cleaner
 /**
@@ -125,7 +131,7 @@ void set_instruction(Info *current_instruction_state, uint8_t instruction);
  *
  * @param current_instruction_state Pointer to the Info structure holding all operand, instruction, registers and results info
  */
-void clean(Info *current_instruction_state);
+EXPORT void clean(Info *current_instruction_state);
 
 // Instruction dispatching prototypes
 /**
@@ -135,6 +141,6 @@ void clean(Info *current_instruction_state);
  * @param current_state Pointer to the Info structure holding all operand, instruction and results info
  * @return 0 if the exit was successful, 1 if caught any 0 division
  */
-uint8_t dispatch(Info *current_instruction_state);
+EXPORT uint8_t dispatch(Info *current_instruction_state);
 
 #endif // OPERATIONS_H

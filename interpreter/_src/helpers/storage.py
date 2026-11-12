@@ -123,7 +123,7 @@ class Storage:
         Storage._validate_json_extension(file_name)
         file_path = Storage._get_path(file_name)
 
-        with open(file_path, "w") as file:
+        with open(file_path, "w", encoding="utf-8") as file:
             json.dump(data, file, indent=4)
 
     @staticmethod
@@ -143,7 +143,7 @@ class Storage:
         file_path = Storage._get_path(file_name)
 
         if not os.path.isfile(file_path):
-            with open(file_path, "w") as file:
+            with open(file_path, "w", encoding="utf-8") as file:
                 json.dump(data, file, indent=4)
 
     @staticmethod
@@ -157,7 +157,7 @@ class Storage:
         """
         file_path = Storage._get_path(file_name, use_cache=False)
         try:
-            with open(file_path, "r") as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 return f.read()
         except FileNotFoundError:
             print(
@@ -175,5 +175,5 @@ class Storage:
         :return list[str]: A list of strings parsed from JSON.
         """
         file_path = Storage._get_path(file_name)
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)

@@ -72,7 +72,7 @@ class Interpreter_x86:
         This method also returns this same state if needed
 
         :return: The state of the process when it finished or None if the an irrecoverable error ended the interpreter
-        :rtype: dict[str, int] | None
+        :rtype: dict[str, int | str] | None
         """
         if self.state_code == ExitCode.IRRECOVERABLE_ERROR:
             self._clear_state()
@@ -116,7 +116,7 @@ class Interpreter_x86:
         :param num_rep: Numerical Representation type to give state in (10 for decimal, 8 for octal, 16 for hexadecimal and 2 for binary)
         :type num_rep: int
         :return: Mapping of variable/register name to its current signed value
-        :rtype: dict[str, int]
+        :rtype: dict[str, int | str]
         :raises ValueError: If section is not one of the recognized names
         """
         if numerical_representation not in [2, 8, 10, 16]:
@@ -221,7 +221,7 @@ class Interpreter_x86:
         :param path: Path to store the exported file at
         :type path: str
         :param state: Contents to store
-        :type state: dict[str, int]
+        :type state: dict[str, int | str]
         """
-        with open(path, "w") as file:
+        with open(path, "w", encoding="utf-8") as file:
             json.dump(state, file, indent=4)

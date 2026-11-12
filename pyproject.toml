@@ -40,18 +40,26 @@ sources = ["interpreter/_src/execution/src/memory_eng.c"]
 include-dirs = ["interpreter/_src/execution/include"]
 
 [[tool.setuptools.ext-modules]]
-name = "interpreter._src.lib.liboperations"
-sources = ["interpreter/_src/execution/src/operations.c"]
-include-dirs = ["interpreter/_src/execution/include"]
-
-[[tool.setuptools.ext-modules]]
-name = "interpreter._src.lib.libreg"
+name = "interpreter._src.lib.libregisters"
 sources = ["interpreter/_src/execution/src/registers.c"]
 include-dirs = ["interpreter/_src/execution/include"]
 
 [[tool.setuptools.ext-modules]]
-name = "interpreter._src.lib.libscl"
-sources = ["interpreter/_src/execution/src/syscall.c"]
+name = "interpreter._src.lib.liboperations"
+sources = [
+    "interpreter/_src/execution/src/operations.c",
+    "interpreter/_src/execution/src/memory_eng.c",
+    "interpreter/_src/execution/src/registers.c",
+]
+include-dirs = ["interpreter/_src/execution/include"]
+
+[[tool.setuptools.ext-modules]]
+name = "interpreter._src.lib.libsyscall"
+sources = [
+    "interpreter/_src/execution/src/syscall.c",
+    "interpreter/_src/execution/src/memory_eng.c",
+    "interpreter/_src/execution/src/registers.c",
+]
 include-dirs = ["interpreter/_src/execution/include"]
 
 [dependency-groups]

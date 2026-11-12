@@ -1,8 +1,10 @@
 # Compiled Binaries
-lib/
 build/
 *.o
 *.so
+*.dynlib
+*.dll
+*.pyd
 interpreter/_src/lib/
 tests/lib/
 tests/bin/

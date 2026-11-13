@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <unistd.h>
 
 // Compilation command: gcc -O3 -shared -o libscl.so -fPIC syscall.c
 

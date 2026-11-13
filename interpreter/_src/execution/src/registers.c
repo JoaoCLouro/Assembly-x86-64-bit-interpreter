@@ -115,5 +115,5 @@ void set_trap_flag(CPURegs *current_state) {
 }
 
 #ifdef _WIN32
-__declspec(dllexport) void* PyInit_libreg(void) { return 0; }
+__declspec(dllexport) void* PyInit_libregisters(void) { return 0; }
 #endif

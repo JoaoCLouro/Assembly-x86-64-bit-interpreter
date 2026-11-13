@@ -22,10 +22,9 @@ If you ever relocate the whole repo to a new path, just re-run
 """
 
 import ctypes
+import importlib.util
 import os
 import sys
-from importlib.resources import files
-from pathlib import Path
 
 
 def _find_project_root(start_dir: str) -> str:
@@ -55,18 +54,17 @@ if SRC_ROOT not in sys.path:
     sys.path.insert(0, SRC_ROOT)
 
 
-def load_c_lib(lib_stem: str) -> ctypes.CDLL:
-    """Load e.g. 'libmmu', 'liboperations', 'libreg', or 'libscl'."""
-    lib_dir = files("interpreter._src.lib")
-    for entry in lib_dir.iterdir():
-        if entry.name.startswith(f"{lib_stem}.") and entry.name.endswith(
-            (".so", ".dylib", ".dll", ".pyd")
-        ):
-            lib_path = Path(str(entry))
-            if sys.platform == "win32":
-                with os.add_dll_directory(str(lib_path.parent)):
-                    return ctypes.CDLL(str(lib_path))
-            return ctypes.CDLL(str(lib_path))
-    raise FileNotFoundError(
-        f"Compiled library '{lib_stem}' not found in interpreter._src.lib"
-    )
+def _load_c_lib(lib_name: str) -> ctypes.CDLL:
+    spec = importlib.util.find_spec(f"interpreter._src.lib.{lib_name}")
+    if spec is None or spec.origin is None:
+        raise FileNotFoundError(
+            f"Compiled C extension '{lib_name}' was not found. "
+            "Install the package with 'uv sync' or 'pip install -e .'."
+        )
+    return ctypes.CDLL(spec.origin)
+
+
+libmmu = _load_c_lib("libmmu")
+libregisters = _load_c_lib("libregisters")
+liboperations = _load_c_lib("liboperations")
+libsyscall = _load_c_lib("libsyscall")

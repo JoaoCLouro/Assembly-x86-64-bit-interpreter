@@ -1,6 +1,8 @@
 import ctypes
 import os
 
+from interpreter._paths import LIBSCL_PATH
+
 from ..bridges.data_memory import Data_Memory
 from ..bridges.register_manager import Registers_Interface
 
@@ -53,7 +55,7 @@ class Syscall:
         # lib/ lives at the project root, one directory up from this file (bridges/)
         _base_dir = os.path.dirname(os.path.abspath(__file__))
         _project_root = os.path.dirname(_base_dir)
-        _lib_path = os.path.join(_project_root, "lib", "libscl.so")
+        _lib_path = LIBSCL_PATH
         self.lib = ctypes.CDLL(_lib_path)
 
         # Setup C types as usable types in python
@@ -102,24 +104,30 @@ class Syscall:
         rdx: int = self.registers.read_reg("rdx")
 
         result: int | None = None
+        result_changed: bool = False
 
         match code:
             case self.SYS_READ:
                 result = self.read(rdi, rsi, rdx)
+                result_changed = True
             case self.SYS_WRITE:
                 result = self.write(rdi, rsi, rdx)
+                result_changed = True
             case self.SYS_OPEN:
                 result = self.open(rdi, rsi, rdx)
+                result_changed = True
             case self.SYS_CLOSE:
                 result = self.close(rdi)
+                result_changed = True
             case self.SYS_GETRANDOM:
                 result = self.getrandom(rdi, rsi)
+                result_changed = True
             case self.SYS_EXIT:
                 return self.exit()
             case _:
                 return -1
 
-        if result is not None:
+        if result_changed:
             self.registers.write_reg("rax", result, signed=True)
             return result
         return 0

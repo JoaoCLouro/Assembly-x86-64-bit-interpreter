@@ -29,6 +29,7 @@ _BRIDGES_DIR = os.path.join(
 if _BRIDGES_DIR not in sys.path:
     sys.path.insert(0, _BRIDGES_DIR)
 
+from interpreter._paths import LIBMMU_PATH
 from interpreter._src.bridges.data_memory import Data_Memory
 from interpreter._src.bridges.register_manager import Registers_Interface
 
@@ -58,7 +59,8 @@ def mem(mock_registers):
 
 
 class TestConstruction:
-    def test_loads_from_project_root_lib_dir(self, mock_registers):
+    def test_loads_from_project_root_lib_dir(self, mock_registers: MagicMock):
+
         with patch("ctypes.CDLL") as mock_cdll:
             mock_lib = MagicMock()
             mock_lib.table_init.return_value = 1
@@ -66,11 +68,7 @@ class TestConstruction:
             Data_Memory(registers=mock_registers)
 
             called_path = mock_cdll.call_args[0][0]
-            assert called_path.endswith(os.path.join("lib", "libmmu.so"))
-            assert (
-                os.path.basename(os.path.dirname(os.path.dirname(called_path)))
-                != "bridges"
-            )
+            assert called_path == LIBMMU_PATH
 
     def test_raises_if_table_init_fails(self, mock_registers):
         with patch("ctypes.CDLL") as mock_cdll:

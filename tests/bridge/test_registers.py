@@ -37,6 +37,7 @@ _BRIDGES_DIR = os.path.join(
 if _BRIDGES_DIR not in sys.path:
     sys.path.insert(0, _BRIDGES_DIR)
 
+from interpreter._paths import LIBREG_PATH
 from interpreter._src.bridges.register_manager import Registers_Interface
 
 
@@ -68,12 +69,7 @@ class TestLibraryLoading:
             Registers_Interface()
 
             called_path = mock_cdll.call_args[0][0]
-            assert called_path.endswith(os.path.join("lib", "libreg.so"))
-            # bridges/ itself must NOT be the parent of the resolved lib/ dir
-            assert (
-                os.path.basename(os.path.dirname(os.path.dirname(called_path)))
-                != "bridges"
-            )
+            assert called_path == LIBREG_PATH
 
     def test_regs_pointer_uses_configured_restype(self):
         """CPURegs_create.restype must be set to c_void_p before it's called,

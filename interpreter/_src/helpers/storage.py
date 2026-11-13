@@ -4,14 +4,9 @@ import json
 import os
 import sys
 
+from interpreter._paths import CACHE_DIR, PROJECT_ROOT
+
 from ...exit_codes import ExitCode
-
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
-SRC_ROOT = os.path.join(PROJECT_ROOT, "interpreter", "_src")
-CACHE_DIR = os.path.join(SRC_ROOT, "program_cache")
-
-LIBREG_PATH = os.path.join(SRC_ROOT, "lib", "libreg.so")
-LIBMMU_PATH = os.path.join(SRC_ROOT, "lib", "libmmu.so")
 
 
 class Storage:

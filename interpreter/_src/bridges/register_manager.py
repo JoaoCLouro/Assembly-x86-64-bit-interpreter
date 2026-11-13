@@ -2,6 +2,8 @@ import ctypes
 import os
 from typing import ClassVar
 
+from interpreter._paths import LIBREG_PATH
+
 # ---------------------
 # Registers interface
 # ---------------------
@@ -60,7 +62,7 @@ class Registers_Interface:
         # lib/ lives at the project root, one directory up from this file (bridges/)
         _base_dir = os.path.dirname(os.path.abspath(__file__))
         _project_root = os.path.dirname(_base_dir)
-        _lib_path = os.path.join(_project_root, "lib", "libreg.so")
+        _lib_path = LIBREG_PATH
         self.lib = ctypes.CDLL(_lib_path)
 
         # -------------------------------

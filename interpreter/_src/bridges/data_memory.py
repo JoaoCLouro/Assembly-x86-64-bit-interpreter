@@ -3,6 +3,8 @@
 import ctypes
 import os
 
+from interpreter._paths import LIBMMU_PATH
+
 from .register_manager import Registers_Interface
 
 
@@ -49,7 +51,7 @@ class Data_Memory:
         # lib/ lives at the project root, one directory up from this file (bridges/)
         _base_dir = os.path.dirname(os.path.abspath(__file__))
         _project_root = os.path.dirname(_base_dir)
-        _lib_path = os.path.join(_project_root, "lib", "libmmu.so")
+        _lib_path = LIBMMU_PATH
         self.lib = ctypes.CDLL(_lib_path)
 
         # Setup C types as usable types in python

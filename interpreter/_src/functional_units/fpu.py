@@ -1,7 +1,7 @@
 import ctypes
 import os
 
-from interpreter._paths import SRC_ROOT
+from interpreter._paths import LIBOPS_PATH
 
 from ..bridges.data_memory import Data_Memory
 from ..bridges.register_manager import Registers_Interface
@@ -20,7 +20,7 @@ class FPU:
         self,
         registers: Registers_Interface,
         memory: Data_Memory,
-        libops_path: str = os.path.join(SRC_ROOT, "lib/liboperations.so"),
+        libops_path: str = LIBOPS_PATH,
     ) -> None:
         self.lib = ctypes.CDLL(os.path.abspath(libops_path))
 

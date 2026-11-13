@@ -2,13 +2,14 @@
 Fixtures for tests/integration/ -- full .asm-file-to-Interpreter_x86
 integration tests, run end-to-end through a subprocess.
 
-Deliberately does NOT do `from conftest import PROJECT_ROOT` -- since
-this file is itself also named conftest.py, pytest/Python resolves a
-bare `conftest` import to this very module (partially initialized at
-that point), not to the project-root conftest.py, causing a circular
-ImportError. Root discovery is duplicated here (same walk-up-to-
-pyproject.toml logic as the root conftest) rather than importing it, to
-sidestep the name collision entirely.
+These tests work in two layouts:
+
+* Source checkout: a pyproject.toml exists above this file. The project
+  root is put on sys.path (and on PYTHONPATH for the subprocess) so the
+  in-tree package is importable even without an editable install.
+* Installed wheel (cibuildwheel copies only tests/ to a temp dir): no
+  pyproject.toml exists, PROJECT_ROOT is None, and nothing is added to the
+  path, so `interpreter` resolves to the installed package.
 """
 
 import json
@@ -20,64 +21,37 @@ from pathlib import Path
 import pytest
 
 
-def _find_project_root(start_dir: str) -> str:
+def _find_project_root(start_dir: str) -> str | None:
+    """Walk up looking for pyproject.toml. Returns None if there isn't one."""
     current = start_dir
     while True:
         if os.path.isfile(os.path.join(current, "pyproject.toml")):
             return current
         parent = os.path.dirname(current)
         if parent == current:
-            raise RuntimeError(
-                f"Could not find a 'pyproject.toml' above {start_dir} -- "
-                "is this test file still somewhere inside the project tree?"
-            )
+            return None
         current = parent
 
 
 PROJECT_ROOT = _find_project_root(os.path.dirname(os.path.abspath(__file__)))
 
-if PROJECT_ROOT not in sys.path:
+if PROJECT_ROOT is not None and PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# NOTE: ExitCode is deliberately NOT imported at module level here. Doing
-# so pulls in the full `interpreter` package import chain (interpreter ->
-# control_unit -> alu.py), and alu.py itself does `from conftest import
-# SRC_ROOT` expecting to resolve to the PROJECT ROOT's conftest.py. Since
-# this file is ALSO named conftest.py and would still be mid-import at
-# that point, Python resolves the bare `conftest` name to THIS
-# partially-initialized module instead - which has no SRC_ROOT - causing
-# an ImportError. Deferring the import into AsmResult.__init__ (called
-# only once tests are actually running, well after pytest has already
-# fully loaded the root conftest.py under the same bare name) sidesteps
-# the collision entirely.
-
-_SRC_ROOT = os.path.join(PROJECT_ROOT, "interpreter", "_src")
-_LIBREG_PATH = os.path.join(_SRC_ROOT, "lib", "libreg.so")
-_LIBMMU_PATH = os.path.join(_SRC_ROOT, "lib", "libmmu.so")
-_LIBSCL_PATH = os.path.join(_SRC_ROOT, "lib", "libscl.so")
-LIBS_PRESENT = (
-    os.path.exists(_LIBREG_PATH)
-    and os.path.exists(_LIBMMU_PATH)
-    and os.path.exists(_LIBSCL_PATH)
-)
-
-ASM_DIR = Path(PROJECT_ROOT) / "tests" / "asm_files"
-RUNNER = Path(__file__).parent / "_runner.py"
+# tests/integration/conftest.py -> parents[1] is tests/, which travels with
+# the test files wherever they are copied.
+_TESTS_DIR = Path(__file__).resolve().parents[1]
+ASM_DIR = _TESTS_DIR / "asm_files"
+RUNNER = Path(__file__).resolve().parent / "_runner.py"
 
 
 class AsmResult:
     """Wraps the outcome of running one .asm file through the interpreter."""
 
     def __init__(self, returncode: int, stdout: str, stderr: str):
-        import importlib.util
-
-        _exit_codes_path = os.path.join(PROJECT_ROOT, "interpreter", "exit_codes.py")
-        _spec = importlib.util.spec_from_file_location(
-            "_exit_codes_direct", _exit_codes_path
-        )
-        _exit_codes_module = importlib.util.module_from_spec(_spec)  # type: ignore
-        _spec.loader.exec_module(_exit_codes_module)  # type: ignore
-        ExitCode = _exit_codes_module.ExitCode
+        # Imported lazily so collecting this module never triggers the full
+        # `interpreter` import chain.
+        from interpreter.exit_codes import ExitCode
 
         self.returncode = returncode
         self.raw_stdout = stdout
@@ -131,13 +105,24 @@ def run_asm():
         asm_path = ASM_DIR / asm_filename
         assert asm_path.exists(), f"Missing test asm file: {asm_path}"
 
+        env = os.environ.copy()
+        if PROJECT_ROOT is not None:
+            # Source checkout: make the in-tree package importable in the
+            # subprocess. Wheel test: leave the environment alone so the
+            # installed package is used.
+            existing = env.get("PYTHONPATH")
+            env["PYTHONPATH"] = (
+                PROJECT_ROOT + os.pathsep + existing if existing else PROJECT_ROOT
+            )
+
         proc = subprocess.run(
             [sys.executable, str(RUNNER), str(asm_path)],
             check=False,
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd=PROJECT_ROOT,
+            cwd=PROJECT_ROOT if PROJECT_ROOT is not None else str(_TESTS_DIR),
+            env=env,
         )
         return AsmResult(proc.returncode, proc.stdout, proc.stderr)
 

@@ -24,150 +24,141 @@ This projects offers two main interfaces:
 
 Before using please make sure your code follows the [Code format references](#code-format-and-syntax-references)
 
-## Installation & Distribution
+## Installation & Usage
 
-> **Prerequisites:** Python 3.14+, `gcc` (or another C compiler), and `make`.
-> The interpreter's register/memory state is implemented in C and loaded via
-> `ctypes` at runtime — **the C shared libraries must be compiled locally
-> regardless of which installation method you use below**, since compiled
-> binaries aren't distributed as part of the wheel.
+> **Architecture Note:** The interpreter's core execution engine—registers, MMU,
+> ALU operations, and syscall layer—is implemented in C (`libregisters`,
+> `libmmu`, `liboperations`, `libsyscall`) and built automatically as native
+> Python C extensions during installation. No manual `make` step is required.
 
-### 1. From GitHub Releases (Pre-built Package)
+## Prerequisites
 
-Download and install the pre-compiled wheel directly from the
-[v0.4.0 GitHub Release](https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter/releases/tag/v0.4.0):
+- **Python 3.10+**
+- **A C compiler toolchain** (used automatically by `setuptools` during installation):
+  - **Linux:** `gcc` or `clang` (e.g., `build-essential` on Debian/Ubuntu or `base-devel` on Arch)
+  - **macOS:** Xcode Command Line Tools (`xcode-select --install`)
+  - **Windows:** Microsoft C++ Build Tools (MSVC)
+- *(Recommended)* **[uv](https://docs.astral.sh/uv/)** for fast environment management and global CLI installation.
 
-```bash
-pip install https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter/releases/download/v0.4.0/cpu_simulator-0.4.0-py3-none-any.whl
-```
+---
 
-You'll still need the C libraries built locally (see step 3 below) — clone
-the repository separately and run `make` from its root before the
-interpreter can actually execute anything.
+## Installation from Source
 
-### 2. From Source
-
-Clone the repository:
+Clone the repository first:
 
 ```bash
-git clone https://github.com/JoaoCLouro/Assembley-x86-64-bit-interpreter.git
-cd Assembley-x86-64-bit-interpreter
+git clone [https://github.com/JoaoCLouro/Assembly-x86-64-bit-interpreter.git](https://github.com/JoaoCLouro/Assembly-x86-64-bit-interpreter.git)
+cd Assembly-x86-64-bit-interpreter
 ```
 
-Create and activate a virtual environment (recommended, keeps the
-project's dependencies isolated from your system Python):
+### Option 1: Using `uv` (Recommended)
+
+**Project-local environment (for running or developing in the repo):**
+
+```bash
+uv sync
+```
+
+This creates `.venv`, installs dependencies, and compiles all four C extensions automatically.
+
+**Global CLI installation (run from any directory):**
+
+```bash
+uv tool install .
+```
+
+This compiles the C extensions and exposes the `interpreter` command globally on your `PATH`.
+
+### Option 2: Using `pip` and `venv`
+
+Create and activate an isolated virtual environment:
 
 ```bash
 python3 -m venv .venv
 
-# bash/zsh
+# Linux / macOS (bash / zsh)
 source .venv/bin/activate
-# fish
+# Linux / macOS (fish)
 source .venv/bin/activate.fish
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
 ```
 
-Install the project in editable mode:
+Install the package (compiles the C extensions automatically):
 
 ```bash
+# Standard install
+pip install .
+
+# Or editable install for development
 pip install -e .
 ```
 
-### 3. Build the C libraries
-
-Required for both installation methods above — this compiles
-`libreg.so`, `libmmu.so`, `liboperations.so`, and `libscl.so` into
-`interpreter/_src/lib/`:
-
-```bash
-make clean && make
-```
-
-Verify the install resolved correctly:
+Verify the installation:
 
 ```bash
 python -c "import interpreter; print(interpreter.__file__)"
 ```
 
-This should print a path inside your cloned repository.
+---
 
-### 4. Running the test suite (optional)
+## Usage
 
-The test suite uses `pytest`, which isn't installed automatically by
-either method above:
+### With `uv run` (Inside the Repository)
 
-```bash
-pip install pytest
-pytest tests/ -v
-```
-
-Alternatively, build local distribution wheels yourself instead of using
-a pre-built release:
+Run an assembly program directly without manually activating `.venv`:
 
 ```bash
-python -m pip install pyproject-build
-pyproject-build
-pip install dist/cpu_simulator-0.3.2-py3-none-any.whl
+uv run interpreter path/to/your/file.asm
 ```
+
+Launch the interactive TUI debugger (`-d`):
+
+```bash
+uv run interpreter path/to/your/file.asm -d
+```
+
+### With a Global Install or Activated `.venv`
+
+If you installed via `uv tool install .` or activated `.venv`:
+
+```bash
+# Run normally
+interpreter path/to/your/file.asm
+
+# Run in Debugger UI mode
+interpreter path/to/your/file.asm -d
+```
+
+*(If installed via `./install.sh`, use `x86-idg` in place of `interpreter`.)*
 
 ---
 
-## Executable Installation & Usage
+## Development & Testing
 
-This project includes automated scripts to safely install the application within an isolated virtual environment and expose a global `x86-idg (x86-interpreter-debugger)` command to your system.
+### Running the Test Suite
 
-### Prerequisites
-
-- **Python 3** (Ensure `python3` is available in your PATH)
-- *(Optional)* **[uv](https://github.com/astral-sh/uv)** for drastically faster dependency resolution.
-
-### Installation
-
-The `install.sh` script handles setting up the virtual environment, installing dependencies, and creating a global executable wrapper in `~/.local/bin`.
-
-1. Give execution permissions to the scripts:
-   ```bash
-   chmod +x install.sh uninstall.sh
-   ```
-
-2. Run the installation script:
-   - **Standard Install (Uses standard `pip` and `venv`):**
-     ```bash
-     ./install.sh
-     ```
-   - **Fast Install (Uses `uv` package manager):**
-     ```bash
-     PKG_MGR=uv ./install.sh
-     ```
-
-**Note on `$PATH`:** The installer places the `x86-idg` binary in `~/.local/bin`. If your system does not already have this directory in its path, you will see a warning.
-- *Bash/Zsh users:* Add `export PATH="$HOME/.local/bin:$PATH"` to your `~/.bashrc` or `~/.zshrc`.
-- *Fish users:* Run `fish_add_path ~/.local/bin`.
-
-### Usage
-
-Once installed, you can run the interpreter and debugger from *any* directory on your system without needing to manually activate the virtual environment.
-
-**Run a file normally:**
-```bash
-x86-idg path/to/your/file.asm
-```
-
-**Run a file in Debugger UI mode:**
-```bash
-x86-idg path/to/your/file.asm -d
-```
-
-Any arguments you pass to `x86-idg` are automatically forwarded to the underlying `runner.py` script.
-
-### Uninstallation
-
-To cleanly remove the global CLI wrapper and desktop shortcuts from your system, run the uninstallation script from the project directory:
+**With `uv`:**
 
 ```bash
-./uninstall.sh
+uv sync --dev
+uv run pytest tests/ -v
 ```
 
-During uninstallation, you will be prompted and can optionally choose to delete the project's local `.venv` directory to free up disk space.
+**With `pip`:**
+
+```bash
+pip install -e ".[test]"
+pytest tests/ -v
+```
+
+### Building Distribution Packages
+
+To build a platform wheel (`.whl`) and source distribution (`.tar.gz`) locally into `dist/`:
+
+```bash
+uv build
+```
 
 ---
 

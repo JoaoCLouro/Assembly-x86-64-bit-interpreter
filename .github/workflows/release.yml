@@ -48,8 +48,7 @@ jobs:
           CIBW_SKIP: "*-win32 *-manylinux_i686 *-musllinux*"
           CIBW_ARCHS_MACOS: universal2
           CIBW_TEST_REQUIRES: pytest
-          CIBW_BEFORE_TEST: "rm -rf {project}/interpreter"
-          CIBW_TEST_COMMAND: pytest {project}/tests && interpreter --help
+          CIBW_TEST_COMMAND: pytest --import-mode=importlib {project}/tests && interpreter --help
         run: uvx cibuildwheel --output-dir wheelhouse
 
       - name: Upload wheel artifacts

@@ -9,7 +9,10 @@
 
 #include <stdint.h>
 #include <stddef.h>
+
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 // Compilation command: gcc -O3 -shared -o libscl.so -fPIC syscall.c
 

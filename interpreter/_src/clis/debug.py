@@ -18,7 +18,6 @@ class DebugCLI(App[None]):
         self.history_index: int = -1
 
     BINDINGS: ClassVar[list[BindingType]] = [
-        ("d", "toggle_dark", "Toggle Dark Mode"),
         ("q", "quit", "Quit"),
         ("up", "history_up", "Previous Command"),
         ("down", "history_down", "Next Command"),
@@ -27,11 +26,6 @@ class DebugCLI(App[None]):
     def on_mount(self) -> None:
         self.update_panels()
         self.query_one("#debug_input").focus()
-
-    def action_toggle_dark(self) -> None:
-        self.theme = (
-            "textual-dark" if self.theme == "textual-light" else "textual-light"
-        )
 
     async def action_quit(self) -> None:
         self.exit()

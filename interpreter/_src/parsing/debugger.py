@@ -108,16 +108,21 @@ MEMORY_UNITS_PER_ROW = {1: 8, 2: 8, 4: 4, 8: 2}
 DEFAULT_CHUNK = 1000
 
 HELP_TEXT = """\
-Debugger commands (unique prefixes work, e.g. 'inf re' for 'info registers'):
+Debugger commands:
   run (r)                              run until a breakpoint or the end
   continue (c)                         continue until the next breakpoint or the end
   step instruction (stepi, si, s)      execute one instruction
+
   break (b) LINE                       set a breakpoint at LINE
   delete (d) LINE                      remove the breakpoint at LINE
   info breakpoints (i b)               list breakpoints
+
   info registers [REG] (i r)           show all registers, or just REG
-  x/NFU ADDRESS                        examine memory: N=count, F=x|d|u, U=b|h|w|g
-                                       ADDRESS is a number (0x1000) or a register ($rsp)
+  x/NFU ADDRESS                        examine memory:
+                                        N=count,
+                                        F=x|d|u, U=b|h|w|g
+                                        ADDRESS is a number (0x1000) or a register ($rsp)
+
   radix [2|8|10|16|bin|oct|dec|hex]    show or change the register output base
   help (h)                             show this text
   quit (q, exit)                       leave the debugger"""

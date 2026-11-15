@@ -403,13 +403,13 @@ class Debugger:
         rows: list[str] = []
         for line in self.source_lines():
             if line.is_current and line.has_breakpoint:
-                gutter = " -->b"
+                gutter = " --> b "
             elif line.is_current:
-                gutter = " --> "
+                gutter = " -->   "
             elif line.has_breakpoint:
-                gutter = "  b  "
+                gutter = "     b "
             else:
-                gutter = "     "
+                gutter = "       "
             rows.append(f"{gutter}{line.number}: {line.text}")
         return rows
 

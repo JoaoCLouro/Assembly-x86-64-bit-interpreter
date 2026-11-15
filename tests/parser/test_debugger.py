@@ -1192,12 +1192,12 @@ class TestProgramLines:
         d.add_breakpoint(1)  # a breakpoint that is not the current line
         d.add_breakpoint(2)  # a breakpoint on the current line
         rows = d.program_lines()
-        assert rows[0] == "  b  1: instr 0"
-        assert rows[1] == " -->b2: instr 1"
-        assert rows[2] == "     3: instr 2"
+        assert rows[0] == "     b 1: instr 0"
+        assert rows[1] == " --> b 2: instr 1"
+        assert rows[2] == "       3: instr 2"
 
     def test_current_line_marker_without_a_breakpoint(self, debugger):
-        assert debugger.program_lines()[0] == " --> 1: instr 0"
+        assert debugger.program_lines()[0] == " -->   1: instr 0"
 
 
 # ---------------------------------------------------------------------------

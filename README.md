@@ -1,7 +1,18 @@
 # Assembly x86 64 bit python Interpreter
 
 A simple assembly x86 64-bit interpreter with sequential execution and error detection.
-For details on the installation and usage of the debugger go to the [Executable installation and usage](#executable-installation--usage) section.
+
+## Quick-Start
+
+Some of the essential sections to the use of this project are tagged bellow:
+
+* [Prerequisites](#prerequisites): Covers what tools/ dependencies each OS needs and how to get them
+* [Installation from source](#installation-from-source) or [Installation from the releases](#installation-from-the-pre-built-releases): Covers how to install the project and what you need to run to update/fetch dependencies so you can use the interpreter as intended.
+* [Usage](#usage) and [CLI Usage](#cli-usage): Cover how to use the projects interpreter as a direct interpreter or the cli debugger as a visualizer of code side effects on the state machine
+* [Programmatic API](#programmatic-python-api): Cover what you can use from the exposed `Interpreter_x86` class in other projects.
+* [Constributions](#contributions): Covers how to contribute and the expected workflow for development.
+
+---
 
 ## About the Project
 
@@ -24,7 +35,7 @@ This projects offers two main interfaces:
 
 Before using please make sure your code follows the [Code format references](#code-format-and-syntax-references)
 
-## Installation & Usage
+## Sections Overview
 
 > **Architecture Note:** The interpreter's core execution engine—registers, MMU,
 > ALU operations, and syscall layer—is implemented in C (`libregisters`,
@@ -41,6 +52,67 @@ Before using please make sure your code follows the [Code format references](#co
 - *(Recommended)* **[uv](https://docs.astral.sh/uv/)** for fast environment management and global CLI installation.
 
 ---
+
+## Installation from the Pre-built Releases
+
+Pre-built binary wheels (`.whl`) are available on the [GitHub Releases](https://github.com/JoaoCLouro/Assembly-x86-64-bit-interpreter/releases) page for **Linux**, **macOS**, and **Windows** (Python 3.10–3.13). Installing from a release wheel **requires no C compiler or local build tools**. All native C extensions (`libmmu`, `libregisters`, `liboperations`, `libsyscall`) are pre-compiled and bundled.
+
+### 1. Download the Release Wheel
+
+1. Navigate to the **[Releases](https://github.com/JoaoCLouro/Assembly-x86-64-bit-interpreter/releases)** page and select the latest version.
+2. Under **Assets**, download the `.whl` file matching your operating system, architecture, and Python version:
+   * **Linux (x86_64):** `assembly_interpreter-<version>-cp3XX-cp3XX-manylinux_..._x86_64.whl`
+   * **macOS (Intel & Apple Silicon):** `assembly_interpreter-<version>-cp3XX-cp3XX-macosx_..._universal2.whl`
+   * **Windows (64-bit):** `assembly_interpreter-<version>-cp3XX-cp3XX-win_amd64.whl`
+
+*(Replace `cp3XX` with your installed Python version, such as `cp312` for Python 3.12).*
+
+> **Tip:** Alternatively, you can install directly from the release URL without manually downloading the file first (see Option B below).
+
+---
+
+### 2. Install the Package
+
+#### Option A: Install as a Standalone CLI Tool (Recommended)
+
+Using `uv` (or `pipx`) installs `interpreter` into an isolated environment and exposes the command globally in your terminal:
+
+```bash
+# Using uv (from a downloaded wheel)
+uv tool install ./assembly_interpreter-<version>-cp3XX-cp3XX-<platform>.whl
+
+# Or install directly via the GitHub Release asset URL
+uv tool install [https://github.com/JoaoCLouro/Assembly-x86-64-bit-interpreter/releases/download/v0.4.1/assembly_interpreter-0.4.1-cp312-cp312-manylinux_2_28_x86_64.whl](https://github.com/JoaoCLouro/Assembly-x86-64-bit-interpreter/releases/download/v0.4.1/assembly_interpreter-0.4.1-cp312-cp312-manylinux_2_28_x86_64.whl)
+```
+
+#### Option B: Install into a Project Virtual Environment
+
+If you want to use the interpreter inside a specific virtual environment:
+
+```bash
+# Create and activate a virtual environment
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install the downloaded wheel
+uv pip install ./assembly_interpreter-<version>-cp3XX-cp3XX-<platform>.whl
+```
+
+(If you don't use `uv`, standard `pip install <wheel-file>.whl` works identically).
+
+### 3. Verify & Run
+
+Confirm that the CLI entry point and pre-compiled C libraries load properly:
+
+```bash
+interpreter --help
+```
+
+To execute or debug an x86-64 assembly file, pass your .asm source file to the interpreter command:
+
+```bash
+interpreter path/to/program.asm
+```
 
 ## Installation from Source
 
@@ -564,6 +636,8 @@ More information can be found at [Docs](./docs/assembly_specs.md#6-exit-codes-st
 
 ## Contributions
 
+Any new contribution should be proposed by a PR to the original GitHub repo. Best practices apply such as using different branches for different tasks and frequent commits for better tracking of whats changed and when. PR messages and commits can be AI generated but should always be reviewed and acknowledged by the one making them.
+
 **Adding a new instruction**
 
 1. Implement the operation and its flag-update logic in
@@ -597,14 +671,6 @@ More information can be found at [Docs](./docs/assembly_specs.md#6-exit-codes-st
 
 ## Roadmap
 
-### Recently added
-
-- Signed and unsigned multiplication/division (`mul`, `imul`, `div`, `idiv`, single-operand NASM form only);
-- Bit shifts and rotations, with and without carry (`shl`/`sal`, `shr`, `sar`, `rol`, `ror`, `rcl`, `rcr`);
-- Configurable numeric representation (decimal, binary, octal, hexadecimal) for `get_state()`/`to_json()` output.
-
-- GDB-like `Debugger` for ease of access to atomic changes in the program execution
-
 ### Planned improvement
 
 - Implement FPU operations, not yet available;
@@ -615,4 +681,4 @@ More information can be found at [Docs](./docs/assembly_specs.md#6-exit-codes-st
 
 ## Contributors
 
-### - João Louro @FCUL comp. science year 1
+### - João Carrilho Louro

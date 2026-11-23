@@ -1,5 +1,6 @@
 from typing import Any, ClassVar
 
+from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.binding import BindingType
 from textual.containers import Horizontal, Vertical
@@ -25,6 +26,9 @@ class DebugCLI(App[None]):
 
     def on_mount(self) -> None:
         self.update_panels()
+        note = self.debugger.source_note
+        if note:
+            self.query_one(".debug_output", RichLog).write(escape(note))
         self.query_one("#debug_input").focus()
 
     async def action_quit(self) -> None:
@@ -61,12 +65,14 @@ class DebugCLI(App[None]):
         result = self.debugger.submit(user_input)
 
         output_log = self.query_one(".debug_output", RichLog)
-        output_log.write(f"[bold cyan]>>> {user_input}[/bold cyan]")
+        # Escaped because source lines and program output can contain "[...]"
+        # (e.g. "mov rax, [rbx]"), which the log would read as markup.
+        output_log.write(f"[bold cyan]>>> {escape(user_input)}[/bold cyan]")
 
         for line in result.lines:
-            output_log.write(line)
+            output_log.write(escape(line))
         if result.output:
-            output_log.write(result.output)
+            output_log.write(escape(result.output))
 
         self.update_panels()
 
@@ -84,10 +90,7 @@ class DebugCLI(App[None]):
             )
 
     def get_ui_state(self) -> dict[str, Any]:
-        return {
-            "registers": self.debugger.read_registers(num_rep=16),
-            "flags": self.debugger.read_registers("eflags", num_rep=2),
-        }
+        return {"registers": self.debugger.read_registers(num_rep=16)}
 
     def update_panels(self) -> None:
         program_widget = self.query_one(".program Static", Static)
@@ -96,13 +99,10 @@ class DebugCLI(App[None]):
         state = self.get_ui_state()
         regs = state["registers"]
 
+        # EFLAGS is part of the register map, so it is listed like the others
         reg_text = ""
         for r, val in regs.items():
-            if r != "eflags":
-                reg_text += f"[bold text-muted]{r.upper():<7}[/] {val}\n"
-
-        flags_bin = state["flags"].get("eflags", "0")
-        reg_text += f"\n[bold text-muted]EFLAGS[/]\n{flags_bin}"
+            reg_text += f"[bold text-muted]{r.upper():<7}[/] {val}\n"
 
         reg_widget = self.query_one(".registers Static", Static)
         reg_widget.update(reg_text)
@@ -112,14 +112,16 @@ class DebugCLI(App[None]):
             program_panel = Vertical(classes="program")
             program_panel.border_title = " Program Source "
             with program_panel:
-                yield Static()
+                yield Static(markup=False)
 
             with Vertical(classes="center_panel"):
                 # New Help Panel
                 help_panel = Vertical(classes="help_wrapper")
                 help_panel.border_title = "  Commands "
                 with help_panel:
-                    yield Static(self.debugger.help_text(), classes="help_text")
+                    yield Static(
+                        self.debugger.help_text(), classes="help_text", markup=False
+                    )
 
                 # Output Log
                 output_panel = Vertical(classes="debug_wrapper")

@@ -19,7 +19,7 @@ runs is captured and handed back, not written to the terminal.
 import contextlib
 import io
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -100,6 +100,19 @@ RADIX_NAMES = {
 }
 VALID_RADIXES = (2, 8, 10, 16)
 RADIX_LABELS = {2: "binary", 8: "octal", 10: "decimal", 16: "hexadecimal"}
+
+# Used to match the original source text to the parsed program (see
+# Debugger._infer_source_map). Anything that does not match makes the debugger
+# fall back to showing the parsed lines instead of guessing.
+COMMENT_MARKERS = (";", "#")
+LABEL_PREFIX = re.compile(r"^[A-Za-z_.$][\w.$]*:\s*")
+DATA_SECTIONS = {"data", "bss", "rodata"}  # compared without dots or colons
+SECTION_DIRECTIVES = {"section", "segment"}
+NON_INSTRUCTION_WORDS = {"global", "globl", "extern", "default", "bits"}
+
+# "line 3" inside a message written by the control unit. Those numbers are
+# 0-based instruction indexes, so they are rewritten before being displayed.
+CONTROL_UNIT_LINE = re.compile(r"\b(line\s+)(\d+)\b", re.IGNORECASE)
 
 # How many x/ units are shown per row, by unit size in bytes (same as GDB).
 MEMORY_UNITS_PER_ROW = {1: 8, 2: 8, 4: 4, 8: 2}
@@ -300,6 +313,7 @@ class SourceLine:
     text: str
     is_current: bool = False
     has_breakpoint: bool = False
+    is_instruction: bool = True  # False for comments, labels, directives, blanks
 
 
 @dataclass
@@ -344,17 +358,91 @@ class Debugger:
           drive `run_chunk` themselves).
         - `read_registers`, `examine_memory`, `resolve_address`, `set_radix`.
         - `add_breakpoint`, `remove_breakpoint`, `breakpoint_lines`.
-        - `source_lines`, `current_line`, `program_lines`.
+        - `source_lines`, `current_line`, `program_lines`; `maps_to_source` says
+          whether they show the original source (set with
+          `attach_source`) or the control unit's parsed lines.
         - `take_output`: text the emulated program printed since the last call.
         - `repl`: plain-terminal front end.
     """
 
     def __init__(self, control_unit: Control_Unit):
         self.control_unit: Control_Unit = control_unit
-        self.breakpoints: set[int] = set()  # 0-based line indexes (compared with rip)
+        self.breakpoints: set[int] = (
+            set()
+        )  # 0-based instruction indexes (compared with rip)
         self.num_rep: int = 10  # base used for register output, changed by `radix`
         self._exit_stop: Stop | None = None
         self._output = io.StringIO()
+        self._source: list[str] = []
+        self._instruction_lines: list[int] | None = (
+            None  # instruction index -> source line
+        )
+        self._line_to_index: dict[int, int] = {}
+        self._mismatch: str = ""
+        # One line saying which lines are shown and why; a front end can display it.
+        self.source_note: str = "No original source attached; showing the parsed lines."
+
+    def attach_source(
+        self,
+        source: str | Sequence[str],
+        source_map: Sequence[int] | None = None,
+    ) -> bool:
+        """
+        Show the original program text instead of the control unit's parsed lines.
+
+        Call this only after the control unit loaded the program without an
+        error: the source is not read at all when the control unit holds no
+        program, and it is only used if it lines up with what was parsed.
+        Without a prior call, the debugger shows the parsed lines.
+
+        :param source: The original program text (a string or its lines).
+        :param source_map: Optional exact mapping, one entry per parsed
+            instruction: the 1-based line of `source` it came from. When
+            omitted it is inferred from `source`; if that does not match the
+            parsed program exactly, nothing changes.
+        :return: True if lines shown are now the original source (see `maps_to_source`).
+        :raises ValueError: If `source_map` does not fit the program or `source`.
+        """
+        self._source = []
+        self._instruction_lines = None
+        self._line_to_index = {}
+        if not self.control_unit.text_section:
+            self.source_note = (
+                "Original source not used: the control unit has no program loaded."
+            )
+            return False  # nothing was loaded, so there is nothing to match
+        self._source = (
+            source.splitlines()
+            if isinstance(source, str)
+            else [line.rstrip("\r\n") for line in source]
+        )
+        if source_map is not None:
+            mapping: list[int] | None = list(source_map)
+            if len(mapping) != len(self.control_unit.text_section) or not all(
+                1 <= n <= len(self._source) for n in mapping
+            ):
+                raise ValueError(
+                    "source_map needs one line number per instruction, "
+                    "each within the source."
+                )
+        else:
+            mapping = self._infer_source_map()
+        if mapping is None:
+            self._source = []
+            self.source_note = (
+                f"Original source not matched ({self._mismatch}); "
+                "showing the parsed lines."
+            )
+            return False
+        self._instruction_lines = mapping
+        self._line_to_index = {line: i for i, line in enumerate(mapping)}
+        self.source_note = "Showing the original source."
+        return True
+
+    @property
+    def maps_to_source(self) -> bool:
+        """True when lines shown are the original source; False when they are the parsed ones."""
+        return self._instruction_lines is not None
 
     @property
     def done(self) -> bool:
@@ -373,27 +461,195 @@ class Debugger:
             return "".join(tokens)
         return f"{tokens[0]} {', '.join(tokens[1:])}"
 
-    def source_lines(self) -> list[SourceLine]:
-        """Every line of the program with its current-line and breakpoint flags."""
-        rip = self.control_unit.rip
-        return [
-            SourceLine(
-                i + 1, self.format_instruction(tokens), i == rip, i in self.breakpoints
+    # --- Line numbering: instruction index <-> the line shown to the user ---
+
+    def _line_of(self, index: int) -> int | None:
+        """
+        The 1-based line shown to the user for instruction `index`.
+
+        Without original source this is index + 1. With it, it is the
+        instruction's line in the source file, or None if `index` is outside
+        the program.
+        """
+        if self._instruction_lines is None:
+            return index + 1
+        if 0 <= index < len(self._instruction_lines):
+            return self._instruction_lines[index]
+        return None
+
+    def _index_of(self, line: int) -> int | None:
+        """The instruction index for a displayed line, or None if that line has no instruction."""
+        if self._instruction_lines is None:
+            return line - 1
+        return self._line_to_index.get(line)
+
+    def _instruction_text(self, index: int) -> str:
+        """The text shown for instruction `index`: its original source line when available."""
+        line = self._line_of(index)
+        if self._instruction_lines is not None and line is not None:
+            return self._source[line - 1].strip()
+        return self.format_instruction(self.control_unit.text_section[index])
+
+    def _localize_message(self, message: str) -> str:
+        """Rewrite the control unit's 0-based 'line N' references into displayed line numbers."""
+
+        def convert(match: re.Match[str]) -> str:
+            index = int(match.group(2))
+            line = self._line_of(index)
+            return f"{match.group(1)}{index + 1 if line is None else line}"
+
+        return CONTROL_UNIT_LINE.sub(convert, message)
+
+    @staticmethod
+    def _where(stop: "Stop") -> str:
+        """' at line N' for a stop, unless unknown or the message already names a line."""
+        if stop.line is None or (
+            stop.message and CONTROL_UNIT_LINE.search(stop.message)
+        ):
+            return ""
+        return f" at line {stop.line}"
+
+    # --- Matching the original source to the parsed program ---
+
+    @staticmethod
+    def _strip_comment(line: str) -> str:
+        quote = ""
+        for i, ch in enumerate(line):
+            if quote:
+                if ch == quote:
+                    quote = ""
+            elif ch in "\"'":
+                quote = ch
+            elif ch in COMMENT_MARKERS:
+                return line[:i]
+        return line
+
+    def _scan_source(self, whole_lines: bool) -> list[tuple[int, str]]:
+        """
+        The (line number, first word) of each source line that could be one
+        entry of the parsed program.
+
+        With `whole_lines`, every line that has code is an entry (labels and
+        directives included), which is how a control unit that keeps them in
+        its program looks. Otherwise only instructions in the text section
+        count, with labels, directives and data skipped.
+        """
+        found: list[tuple[int, str]] = []
+        in_text = True
+        for number, raw in enumerate(self._source, start=1):
+            code = self._strip_comment(raw).strip()
+            if not whole_lines:
+                while match := LABEL_PREFIX.match(code):
+                    code = code[match.end() :]
+            if not code:
+                continue
+            word, *rest = code.split()
+            word = word.lower()
+            if whole_lines:
+                found.append((number, word.rstrip(":")))
+                continue
+            name = rest[0].lower().strip(".:") if rest else ""
+            if word in SECTION_DIRECTIVES:
+                in_text = name == "text"
+            elif word.startswith("."):
+                kind = word.strip(".:")
+                if kind == "text":
+                    in_text = True
+                elif kind in DATA_SECTIONS:
+                    in_text = False
+            elif word in NON_INSTRUCTION_WORDS:
+                continue
+            elif in_text:
+                found.append((number, word))
+        return found
+
+    def _infer_source_map(self) -> list[int] | None:
+        """
+        Work out which source line each entry of the parsed program came from.
+
+        Tries both layouts (see `_scan_source`) and accepts one only if it lines
+        up one-to-one, first word by first word, with the control unit's parsed
+        program. Returns None if neither does, so a wrong guess is never shown.
+        """
+        program = self.control_unit.text_section
+        parsed: list[str] = []
+        for tokens in program:
+            first = (
+                (tokens.split() or [""])[0]
+                if isinstance(tokens, str)
+                else (tokens[0] if tokens else "")
             )
-            for i, tokens in enumerate(self.control_unit.text_section)
-        ]
+            parsed.append(str(first).lower().rstrip(":"))
+        best: tuple[int, str] = (-1, "")
+        for whole_lines in (False, True):
+            found = self._scan_source(whole_lines)
+            words = [word for _, word in found]
+            if words == parsed:
+                return [number for number, _ in found]
+            # Remember the layout that agreed the longest, to explain the miss
+            best = max(best, self._describe_mismatch(words, parsed), key=lambda t: t[0])
+        self._mismatch = best[1]
+        return None
+
+    @staticmethod
+    def _describe_mismatch(words: list[str], parsed: list[str]) -> tuple[int, str]:
+        """How many leading entries agree, and a short description of the first difference."""
+        for i, (word, expected) in enumerate(zip(words, parsed)):
+            if word != expected:
+                return (
+                    i,
+                    f"entry {i + 1} is '{word}' in the source but '{expected}' in the program",
+                )
+        return min(len(words), len(parsed)), (
+            f"the source has {len(words)} entries but the program has {len(parsed)}"
+        )
+
+    # --- Source for display ---
+
+    def source_lines(self) -> list[SourceLine]:
+        """
+        Every line to show, with its current-line and breakpoint flags.
+
+        With original source these are all the lines of the file (comments and
+        labels included, marked `is_instruction=False`); otherwise one entry
+        per parsed instruction.
+        """
+        rip = self.control_unit.rip
+        if self._instruction_lines is None:
+            return [
+                SourceLine(
+                    i + 1,
+                    self.format_instruction(tokens),
+                    i == rip,
+                    i in self.breakpoints,
+                )
+                for i, tokens in enumerate(self.control_unit.text_section)
+            ]
+        rows: list[SourceLine] = []
+        for number, text in enumerate(self._source, start=1):
+            index = self._line_to_index.get(number)
+            rows.append(
+                SourceLine(
+                    number,
+                    text.rstrip().expandtabs(4),
+                    is_current=index is not None and index == rip,
+                    has_breakpoint=index is not None and index in self.breakpoints,
+                    is_instruction=index is not None,
+                )
+            )
+        return rows
 
     def current_line(self) -> SourceLine | None:
         """The line about to be executed, or None if the program is over or rip is out of range."""
         if self.done:
             return None
         rip = self.control_unit.rip
-        text_section = self.control_unit.text_section
-        if not 0 <= rip < len(text_section):
+        line = self._line_of(rip)
+        if line is None or not 0 <= rip < len(self.control_unit.text_section):
             return None
         return SourceLine(
-            rip + 1,
-            self.format_instruction(text_section[rip]),
+            line,
+            self._instruction_text(rip),
             is_current=True,
             has_breakpoint=rip in self.breakpoints,
         )
@@ -416,24 +672,31 @@ class Debugger:
     # === Breakpoints ===
 
     def add_breakpoint(self, line_number: int) -> bool:
-        """Set a breakpoint at a 1-based line. Returns False if it was already set."""
-        index = line_number - 1
+        """
+        Set a breakpoint at a displayed (1-based) line. Returns False if it was already set.
+
+        :raises InvalidCommandError: If the line has no instruction (a comment, label, ...).
+        """
+        index = self._index_of(line_number)
+        if index is None:
+            raise InvalidCommandError(f"Line {line_number} has no instruction.")
         if index in self.breakpoints:
             return False
         self.breakpoints.add(index)
         return True
 
     def remove_breakpoint(self, line_number: int) -> bool:
-        """Remove the breakpoint at a 1-based line. Returns False if there was none."""
-        index = line_number - 1
-        if index not in self.breakpoints:
+        """Remove the breakpoint at a displayed (1-based) line. Returns False if there was none."""
+        index = self._index_of(line_number)
+        if index is None or index not in self.breakpoints:
             return False
         self.breakpoints.discard(index)
         return True
 
     def breakpoint_lines(self) -> list[int]:
-        """The 1-based lines that have a breakpoint, in order."""
-        return [bp + 1 for bp in sorted(self.breakpoints)]
+        """The displayed (1-based) lines that have a breakpoint, in order."""
+        lines = (self._line_of(bp) for bp in sorted(self.breakpoints))
+        return [line for line in lines if line is not None]
 
     # === Running the program ===
 
@@ -445,7 +708,9 @@ class Debugger:
             stop = self._step_once()
         if stop is None and self.control_unit.finished:
             stop = Stop(StopReason.FINISHED)
-        return stop or Stop(StopReason.STEPPED, line=self.control_unit.rip + 1)
+        return stop or Stop(
+            StopReason.STEPPED, line=self._line_of(self.control_unit.rip)
+        )
 
     def run_chunk(self, max_steps: int = DEFAULT_CHUNK) -> Stop | None:
         """
@@ -469,7 +734,9 @@ class Debugger:
                 if stop is not None:
                     return stop
                 if self.control_unit.rip in self.breakpoints:
-                    return Stop(StopReason.BREAKPOINT, line=self.control_unit.rip + 1)
+                    return Stop(
+                        StopReason.BREAKPOINT, line=self._line_of(self.control_unit.rip)
+                    )
         return None
 
     def continue_execution(self) -> Stop:
@@ -492,18 +759,36 @@ class Debugger:
 
     def _step_once(self) -> Stop | None:
         """Execute one instruction; return a Stop only if it ended the program abnormally."""
+        mark = (
+            self._output.tell()
+        )  # whatever is printed after this belongs to this step
         try:
             self.control_unit._step()  # type: ignore
         except CPUException as e:
             # Same handling as Control_Unit.run(): report it and end the program
             self.control_unit.finished = True
             self._exit_stop = Stop(
-                StopReason.FAULT, line=self.control_unit.rip + 1, message=str(e)
+                StopReason.FAULT,
+                line=self._line_of(self.control_unit.rip),
+                message=self._localize_message(str(e)),
             )
+            self._localize_output_since(mark)
         except SystemExit as e:
             # The interpreter calls sys.exit on bad instructions, a missing exit, etc.
             self._exit_stop = self._stop_from_exit(e)
+            self._localize_output_since(mark)
         return self._exit_stop
+
+    def _localize_output_since(self, mark: int) -> None:
+        """
+        Rewrite the 0-based 'line N' in what the control unit printed while
+        reporting an error. Only text from the failing step is touched, never
+        output the program printed earlier.
+        """
+        text = self._output.getvalue()
+        self._output.seek(mark)
+        self._output.truncate()
+        self._output.write(self._localize_message(text[mark:]))
 
     def _stop_from_exit(self, exc: SystemExit) -> Stop:
         code = exc.code
@@ -513,10 +798,12 @@ class Debugger:
             value = 0
         return Stop(
             StopReason.EXITED,
-            line=self.control_unit.rip + 1,
+            line=self._line_of(self.control_unit.rip),
             exit_code=value if isinstance(value, int) else None,
             exit_name=name,
-            message=None if isinstance(value, int) else str(value),
+            message=None
+            if isinstance(value, int)
+            else self._localize_message(str(value)),
         )
 
     def _end_stop(self) -> Stop:
@@ -761,9 +1048,9 @@ class Debugger:
                         else str(stop.exit_code)
                     )
                     what = f"Program exited with code {code}"
-                return [f"{what} at line {stop.line}."]
+                return [f"{what}{self._where(stop)}."]
             case StopReason.FAULT:
-                return [f"CPU exception: {stop.message} at line {stop.line}."]
+                return [f"CPU exception: {stop.message}{self._where(stop)}."]
 
     def _location_lines(self) -> list[str]:
         """The line about to execute, e.g. ['12: mov rax, 1']."""
@@ -771,7 +1058,10 @@ class Debugger:
             return []
         line = self.current_line()
         if line is None:
-            return [f"At line {self.control_unit.rip + 1}."]
+            shown = self._line_of(self.control_unit.rip)
+            if shown is None:
+                return ["Execution is outside the program."]
+            return [f"At line {shown}."]
         return [f"{line.number}: {line.text}"]
 
     @staticmethod
